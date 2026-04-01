@@ -1,0 +1,79 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-.-Debug-53724f16e5d4b6d7b380.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.16"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "Agentia",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "Agentia::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-Agentia-Debug-ea9ee4cfe89d6b94cf0c.json",
+					"name" : "Agentia",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "Agentia_autogen::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-Agentia_autogen-Debug-f80d5c3f363c773582df.json",
+					"name" : "Agentia_autogen",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "Agentia_autogen_timestamp_deps::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-Agentia_autogen_timestamp_deps-Debug-cbc9f9c57bd2b81d23c2.json",
+					"name" : "Agentia_autogen_timestamp_deps",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "D:/QtProject/Agentia/build/Desktop_Qt_6_10_2_MinGW_64_bit-Debug",
+		"source" : "D:/QtProject/Agentia"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 7
+	}
+}

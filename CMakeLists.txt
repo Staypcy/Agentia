@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(AgentiaGUI VERSION 0.1 LANGUAGES CXX)
+project(Agentia VERSION 0.1 LANGUAGES CXX)
 
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
@@ -13,46 +13,50 @@ find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 
 set(PROJECT_SOURCES
-        main.cpp
-        mainwindow.cpp
-        mainwindow.h
-        mainwindow.ui
+        qt/main.cpp
+        qt/mainwindow.cpp
+        qt/mainwindow.h
+        qt/mainwindow.ui
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
-    qt_add_executable(AgentiaGUI
+    qt_add_executable(Agentia
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
-        datadisplay.h datadisplay.cpp
-        Resource.qrc
+        qt/datadisplay.h qt/datadisplay.cpp
+        #qt/Resource.qrc
+        qt/gridworld.h qt/gridworld.cpp
     )
 # Define target properties for Android with Qt 6 as:
-#    set_property(TARGET AgentiaGUI APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
+#    set_property(TARGET Agentia APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
 #                 ${CMAKE_CURRENT_SOURCE_DIR}/android)
 # For more information, see https://doc.qt.io/qt-6/qt-add-executable.html#target-creation
 else()
     if(ANDROID)
-        add_library(AgentiaGUI SHARED
+        add_library(Agentia SHARED
             ${PROJECT_SOURCES}
         )
 # Define properties for Android with Qt 5 after find_package() calls as:
 #    set(ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android")
     else()
-        add_executable(AgentiaGUI
+        add_executable(Agentia
             ${PROJECT_SOURCES}
         )
     endif()
 endif()
 
-target_link_libraries(AgentiaGUI PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
+target_include_directories(Agentia PRIVATE qt)
+target_link_libraries(Agentia PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
+#    hiredis
+)
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an
 # explicit, fixed bundle identifier manually though.
 if(${QT_VERSION} VERSION_LESS 6.1.0)
-  set(BUNDLE_ID_OPTION MACOSX_BUNDLE_GUI_IDENTIFIER com.example.AgentiaGUI)
+  set(BUNDLE_ID_OPTION MACOSX_BUNDLE_GUI_IDENTIFIER com.example.Agentia)
 endif()
-set_target_properties(AgentiaGUI PROPERTIES
+set_target_properties(Agentia PROPERTIES
     ${BUNDLE_ID_OPTION}
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
     MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
@@ -61,12 +65,17 @@ set_target_properties(AgentiaGUI PROPERTIES
 )
 
 include(GNUInstallDirs)
-install(TARGETS AgentiaGUI
+install(TARGETS Agentia
     BUNDLE DESTINATION .
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
 if(QT_VERSION_MAJOR EQUAL 6)
-    qt_finalize_executable(AgentiaGUI)
+    qt_finalize_executable(Agentia)
 endif()
+
+#hiredis要依赖
+#if(WIN32)
+#    target_link_libraries(${PROJECT_NAME} ws2_32)
+#endif()
