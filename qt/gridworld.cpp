@@ -7,6 +7,7 @@ GridWorld::GridWorld(QWidget *parent)
 {
     setMinimumSize(600,600);
     setMaximumSize(600,600);
+    generateWorldmap(width() / gridsize, height() / gridsize);
 }
 
 GridWorld::GridWorld(int Gwidth, int Gheight, QWidget *parent)
@@ -20,6 +21,7 @@ GridWorld::GridWorld(int Gwidth, int Gheight, QWidget *parent)
 
     generateWorldmap(xSize,ySize);
 
+    update();
 }
 
 void GridWorld::paintEvent(QPaintEvent *event)
@@ -57,7 +59,7 @@ void GridWorld::paintEvent(QPaintEvent *event)
         for(int j=0;j<ySize;j++){
             if(i>=gridset.size()&&j>gridset[i].size())continue;
 
-            QRect cellRect(i*gridsize,j*gridsize,xSize,ySize);
+            QRect cellRect(i*gridsize,j*gridsize,gridsize,gridsize);
             QColor color;
 
             switch(gridset[i][j].build){
@@ -85,6 +87,29 @@ void GridWorld::paintEvent(QPaintEvent *event)
             }
             painter.fillRect(cellRect,color);
         }
+    }
+
+    for(Agent* temp:agents){
+        QColor color;
+        switch (temp->type) {
+        case AgentType::Worker:
+            color=Qt::black;
+            break;
+        case AgentType::Residenter:
+            color=Qt::gray;
+            break;
+        case AgentType::Manager:
+            color=Qt::green;
+            break;
+        default:
+            break;
+        }
+
+        painter.setBrush(color);
+        int x = temp->pos.x * gridsize;
+        int y = temp->pos.y * gridsize;
+        //画一个小一点的圆
+        painter.drawEllipse(x + 2, y + 2, gridsize - 4, gridsize - 4);
     }
 }
 
@@ -116,5 +141,91 @@ void GridWorld::generateWorldmap(int Xsize, int Ysize)
             }
         }
     }
+}
+
+const std::vector<Agent *> &GridWorld::getAgents() const
+{
+    return agents;
+}
+
+void GridWorld::addAgent()
+{
+    Status sta;//怎么会有这种个问题啊： Most Vexing Parse 服了
+    Position pos(12, 12);
+    std::string id = "test_01";
+    AgentType type = AgentType::Worker;
+    Agent* New=new Agent(id, type, sta, pos);
+    agents.push_back(New);
+}
+
+void GridWorld::updateWorld()
+{
+    //test,this is not the finally version
+    std::vector<Action>actions;//每位agent的动作
+    for (Agent* agent : agents) {
+        actions.push_back(agent->decide());
+    }
+
+    //take actions
+    for (size_t i = 0; i < agents.size(); i++) {
+        Agent* temp = agents[i];
+        Action action_temp = actions[i];
+        Position pos = temp->pos;
+
+        switch (action_temp)
+        {
+        case MoveUp:
+            pos.y--;
+            if (isOutWorld(pos.x, pos.y)) {
+                temp->move(action_temp);
+            }
+            break;
+        case MoveDown:
+            pos.y++;
+            if (isOutWorld(pos.x, pos.y)) {
+                temp->move(action_temp);
+            }
+            break;
+        case MoveRight:
+            pos.x++;
+            if (isOutWorld(pos.x, pos.y)) {
+                temp->move(action_temp);
+            }
+            break;
+        case MoveLeft:
+            pos.x--;
+            if (isOutWorld(pos.x, pos.y)) {
+                temp->move(action_temp);
+            }
+            break;
+        case Staying:
+            if (temp->status.action_energy.energyValue <= 95)
+                temp->status.action_energy.energyValue += 5;
+
+            else temp->status.action_energy.energyValue = 100;
+            break;
+        case Work:
+            if (temp->status.action_energy.energyValue <= 5)
+                temp->status.action_energy.energyValue = 0;
+            else temp->status.action_energy.energyValue -= 5;
+
+            if (temp->status.action_energy.energyValue <= 30)temp->status.eat_Status = EatStatus::Hungry;
+            break;
+        case Iteract:
+            break;
+        default:
+            break;
+        }
+    }
+
+    update();
+}
+
+bool GridWorld::isOutWorld(int x,int y)
+{
+    int col = gridset.size();
+    int row = gridset[0].size();
+    if ((x < 0 || x >= col) && (y < 0 || y >= row))return false;
+    return true;
 }
 

@@ -5,6 +5,9 @@
 #include<QVector>
 #include<QPainter>
 
+#include<vector>
+#include"Agent.h"
+
 const int gridsize=20;
 
 enum Building {
@@ -30,10 +33,19 @@ public:
 protected:
     void paintEvent(QPaintEvent *event)override;
     void generateWorldmap(int Xsize,int Ysize);
+
+public:
+    const std::vector<Agent*>& getAgents()const;
+    void addAgent();
+    void updateWorld();
+    bool isOutWorld(int x,int y);
+private:
+    std::vector<Agent*> agents;
 signals:
 
 public:
     QVector<QVector<Gridcell>>gridset;
 };
+
 
 #endif // GRIDWORLD_H

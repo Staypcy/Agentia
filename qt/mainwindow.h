@@ -31,9 +31,9 @@ public:
 private:
     Ui::MainWindow *ui;
 
+//改为ui指针来管理
     DataDisplay *SumDataDisplay;
     DataDisplay *BaseDataDisplay;
-
     GridWorld* gridworld;
 
 };

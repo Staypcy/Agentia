@@ -7,12 +7,3 @@ DataDisplay::DataDisplay(QWidget *parent)
     Display=new QTextEdit(this);
 
 }
-
-void DataDisplay::setLabel(const QString text)
-{
-    QVBoxLayout layout(Display);
-    label->setText(text);
-    layout.addWidget(label);
-}
-
-

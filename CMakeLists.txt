@@ -9,6 +9,13 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set(CPP_SOURCES
+    cpp/Agent.cpp
+)
+set(CPP_HEADERS
+    cpp/Agent.h
+)
+
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 
@@ -26,6 +33,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         qt/datadisplay.h qt/datadisplay.cpp
         #qt/Resource.qrc
         qt/gridworld.h qt/gridworld.cpp
+        ${CPP_SOURCES}
+        ${CPP_HEADERS}
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET Agentia APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
@@ -45,7 +54,7 @@ else()
     endif()
 endif()
 
-target_include_directories(Agentia PRIVATE qt)
+target_include_directories(Agentia PRIVATE qt cpp)
 target_link_libraries(Agentia PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
 #    hiredis
 )
@@ -79,3 +88,7 @@ endif()
 #if(WIN32)
 #    target_link_libraries(${PROJECT_NAME} ws2_32)
 #endif()
+
+#外部文件，不参与Qt编译环境的构建
+file(GLOB_RECURSE EXTRA_FILES CONFIGURE_DEPENDS cpp/* py/*)
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} PREFIX "External" FILES ${EXTRA_FILES})

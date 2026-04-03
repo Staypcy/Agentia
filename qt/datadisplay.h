@@ -10,10 +10,8 @@ class DataDisplay : public QWidget
     Q_OBJECT
 public:
     explicit DataDisplay(QWidget *parent = nullptr);
-    void setLabel(const QString text);
 public:
     QTextEdit* Display;
-    QLabel* label;
 signals:
 
 };

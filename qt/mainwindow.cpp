@@ -1,6 +1,7 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
 #include<QString>
+#include<QTimer>
 
 //测试
 #include<QPushButton>
@@ -11,7 +12,7 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-
+/*
     //设计中心窗口
     QWidget* central= new QWidget(this);
     setCentralWidget(central);
@@ -27,6 +28,14 @@ MainWindow::MainWindow(QWidget *parent)
     BaseDataDisplay->Display->setReadOnly(true);
     //QString str="hello world";
     //SumDataDisplay->setLabel(str);
+
+*/
+    BaseDataDisplay=ui->BaseDataDisplay;
+    SumDataDisplay=ui->SumDataDisplay;
+    gridworld=ui->gridworld;
+
+    BaseDataDisplay->Display->setReadOnly(true);
+    SumDataDisplay->Display->setReadOnly(true);
 /*
     //地图部分
     QGraphicsScene *Scene=new QGraphicsScene(this);
@@ -41,15 +50,14 @@ MainWindow::MainWindow(QWidget *parent)
     view->setDragMode(QGraphicsView::ScrollHandDrag);
     view->resize(480,600);
 */
-    gridworld=new GridWorld(600,600,central);
-    mainLayout->addWidget(gridworld);
+    //test
+    connect(ui->pushButton,&QPushButton::clicked,[=]{
+       gridworld->addAgent();
+    });
 
-    mainLayout->addWidget(SumDataDisplay,2);
-    mainLayout->addWidget(BaseDataDisplay,2);
-
-    QPushButton btn(this);
-    btn.move(640,480);
-
+    QTimer* timer=new QTimer(this);
+    connect(timer,&QTimer::timeout,gridworld,&GridWorld::updateWorld);
+    timer->start(500);
 }
 
 MainWindow::~MainWindow()
