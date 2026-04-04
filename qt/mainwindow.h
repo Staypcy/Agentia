@@ -13,6 +13,7 @@
 #include <QGraphicsPixmapItem>
 
 #include "gridworld.h"
+#include"NetWorkManager.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -36,5 +37,8 @@ private:
     DataDisplay *BaseDataDisplay;
     GridWorld* gridworld;
 
+
+public:
+    NetWorkManager* Netmanager;
 };
 #endif // MAINWINDOW_H

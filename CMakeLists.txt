@@ -11,13 +11,16 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CPP_SOURCES
     cpp/Agent.cpp
+    cpp/NetWorkManager.cpp
 )
 set(CPP_HEADERS
     cpp/Agent.h
+    cpp/NetWorkManager.h
 )
 
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets Network)
 
 set(PROJECT_SOURCES
         qt/main.cpp
@@ -55,7 +58,10 @@ else()
 endif()
 
 target_include_directories(Agentia PRIVATE qt cpp)
-target_link_libraries(Agentia PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
+target_link_libraries(Agentia PRIVATE
+    Qt${QT_VERSION_MAJOR}::Widgets
+    Qt${QT_VERSION_MAJOR}::Network
+    Qt${QT_VERSION_MAJOR}::Core
 #    hiredis
 )
 

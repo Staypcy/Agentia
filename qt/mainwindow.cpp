@@ -2,6 +2,7 @@
 #include "./ui_mainwindow.h"
 #include<QString>
 #include<QTimer>
+#include<QElapsedTimer>
 
 //测试
 #include<QPushButton>
@@ -12,6 +13,9 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+    Netmanager=new NetWorkManager(this);
+
+    Netmanager->textEdit=ui->textEdit;
 /*
     //设计中心窗口
     QWidget* central= new QWidget(this);
@@ -36,6 +40,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     BaseDataDisplay->Display->setReadOnly(true);
     SumDataDisplay->Display->setReadOnly(true);
+    ui->textEdit->setReadOnly(true);
 /*
     //地图部分
     QGraphicsScene *Scene=new QGraphicsScene(this);
@@ -52,8 +57,11 @@ MainWindow::MainWindow(QWidget *parent)
 */
     //test
     connect(ui->pushButton,&QPushButton::clicked,[=]{
-       gridworld->addAgent();
+        gridworld->addAgent();
     });
+    connect(ui->pushButton,&QPushButton::clicked,Netmanager,&NetWorkManager::onselfclicked);
+
+    connect(Netmanager->manager,&QNetworkAccessManager::finished,Netmanager,&NetWorkManager::onNetworkReplay);
 
     QTimer* timer=new QTimer(this);
     connect(timer,&QTimer::timeout,gridworld,&GridWorld::updateWorld);

@@ -34,7 +34,6 @@ void GridWorld::paintEvent(QPaintEvent *event)
 
     int w = width();
     int h = height();
-    qDebug() << "GridWorld size:" << w << "x" << h;
 
     // 画竖线
     for (int x = 0; x <= w; x += gridsize) {
