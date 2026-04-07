@@ -14,6 +14,7 @@
 
 #include "gridworld.h"
 #include"NetWorkManager.h"
+#include" redisworker.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -40,5 +41,7 @@ private:
 
 public:
     NetWorkManager* Netmanager;
+
+    redisWorker* redismanager;
 };
 #endif // MAINWINDOW_H

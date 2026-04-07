@@ -19,7 +19,7 @@
      <rect>
       <x>0</x>
       <y>0</y>
-      <width>1218</width>
+      <width>1238</width>
       <height>602</height>
      </rect>
     </property>
@@ -50,6 +50,20 @@
       <layout class="QVBoxLayout" name="verticalLayout">
        <item>
         <layout class="QHBoxLayout" name="horizontalLayout_2">
+         <item>
+          <widget class="QPushButton" name="getBtn">
+           <property name="text">
+            <string>getBtn</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="setBtn">
+           <property name="text">
+            <string>setBtn</string>
+           </property>
+          </widget>
+         </item>
          <item>
           <widget class="QTextEdit" name="textEdit">
            <property name="minimumSize">

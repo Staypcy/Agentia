@@ -1,3 +1,4 @@
+#pragma once
 #include"NetWorkManager.h"
 #include<QUrl>
 #include<QJsonArray>
@@ -20,7 +21,7 @@ void NetWorkManager::onselfclicked()
     request.setHeader(QNetworkRequest::ContentTypeHeader,"application/json");
 
     //>>自定义请求头
-    QByteArray key("自己添加你的密钥，不准白嫖我的...>_<");
+    QByteArray key("Bearer sk-bb9715ee3c3d4773ab760709e45e7433");
     request.setRawHeader("Authorization",key);
 
     QJsonObject obj;

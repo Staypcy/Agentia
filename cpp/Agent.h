@@ -75,8 +75,10 @@ struct Position {
     }
 };
 
+
+
 enum Action {
-	MoveUp,MoveDown,MoveRight,MoveLeft,Staying,Work,Iteract
+    MoveUp,MoveDown,MoveRight,MoveLeft,Work,Interact,Staying
 };
 
 class Agent {

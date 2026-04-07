@@ -6,34 +6,24 @@
 
 //测试
 #include<QPushButton>
+#include<QTextBlock>
 
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
 {
+
     ui->setupUi(this);
     Netmanager=new NetWorkManager(this);
 
     Netmanager->textEdit=ui->textEdit;
-/*
-    //设计中心窗口
-    QWidget* central= new QWidget(this);
-    setCentralWidget(central);
 
-    //主布局
-    QHBoxLayout *mainLayout=new QHBoxLayout(central);
+    //>>test_for_redis
+    redismanager=new redisWorker(this);
+    //<<test_for_redis
 
-    //>>信息显示
-    //统计信息
-    SumDataDisplay=new DataDisplay(central);
-    BaseDataDisplay=new DataDisplay(central);
-    SumDataDisplay->Display->setReadOnly(true);
-    BaseDataDisplay->Display->setReadOnly(true);
-    //QString str="hello world";
-    //SumDataDisplay->setLabel(str);
 
-*/
     BaseDataDisplay=ui->BaseDataDisplay;
     SumDataDisplay=ui->SumDataDisplay;
     gridworld=ui->gridworld;
@@ -41,20 +31,8 @@ MainWindow::MainWindow(QWidget *parent)
     BaseDataDisplay->Display->setReadOnly(true);
     SumDataDisplay->Display->setReadOnly(true);
     ui->textEdit->setReadOnly(true);
-/*
-    //地图部分
-    QGraphicsScene *Scene=new QGraphicsScene(this);
-    QPixmap mapPixmap("://images/6EiQ0zF4o9.jpg");
-    if(mapPixmap.isNull()){
-        qDebug()<<"图片加载失败";
-    }
-    QGraphicsPixmapItem* mapItem=Scene->addPixmap(mapPixmap);
-    Scene->setSceneRect(mapPixmap.rect());
 
-    QGraphicsView *view=new QGraphicsView(Scene,this);
-    view->setDragMode(QGraphicsView::ScrollHandDrag);
-    view->resize(480,600);
-*/
+
     //test
     connect(ui->pushButton,&QPushButton::clicked,[=]{
         gridworld->addAgent();
@@ -62,6 +40,39 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->pushButton,&QPushButton::clicked,Netmanager,&NetWorkManager::onselfclicked);
 
     connect(Netmanager->manager,&QNetworkAccessManager::finished,Netmanager,&NetWorkManager::onNetworkReplay);
+
+    //>>test_for_redis
+    int port=6379;
+    if (!redismanager->connectToredis()) {
+        ui->textEdit->append("警告：Redis 连接失败，请检查服务是否运行");
+    } else {
+        ui->textEdit->append("Redis 连接成功");
+    }
+
+    QTextBlock blocks=ui->textEdit->document()->findBlockByNumber(1);
+    const std::string agent_action_decide=blocks.text().toStdString();
+
+
+    //const QString key_agent_test_id="001";
+    //const QString value=QString::fromStdString(agent_action_decide);
+    QString cmd;
+    connect(ui->setBtn,&QPushButton::clicked,[&](){
+        const QString key_agent_test_id="001";
+        QString value=QString::fromStdString(agent_action_decide);
+        cmd=QString("SET %1 %2").arg(key_agent_test_id,value);
+        QString result=redismanager->execommand(cmd);
+        ui->textEdit->append("redis:"+result);
+    });
+
+    connect(ui->getBtn,&QPushButton::clicked,[&](){
+        QString key_agent_test_id="001";
+        cmd=QString("GET %1").arg(key_agent_test_id);
+
+        QString redis_reply=redismanager->execommand(cmd);
+        ui->textEdit->append("redis:"+redis_reply);
+    });
+
+    //<<test_for_redis
 
     QTimer* timer=new QTimer(this);
     connect(timer,&QTimer::timeout,gridworld,&GridWorld::updateWorld);

@@ -210,7 +210,7 @@ void GridWorld::updateWorld()
 
             if (temp->status.action_energy.energyValue <= 30)temp->status.eat_Status = EatStatus::Hungry;
             break;
-        case Iteract:
+        case Interact:
             break;
         default:
             break;
