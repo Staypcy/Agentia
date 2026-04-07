@@ -21,8 +21,7 @@ void NetWorkManager::onselfclicked()
     request.setHeader(QNetworkRequest::ContentTypeHeader,"application/json");
 
     //>>自定义请求头
-    QByteArray key("Bearer sk-bb9715ee3c3d4773ab760709e45e7433");
-    request.setRawHeader("Authorization",key);
+    QByteArray key("Bearer yourKey");
 
     QJsonObject obj;
     obj["model"]="qwen-plus";
