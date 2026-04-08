@@ -7,6 +7,7 @@
 //测试
 #include<QPushButton>
 #include<QTextBlock>
+#include<QMessageBox>
 
 
 MainWindow::MainWindow(QWidget *parent)
@@ -48,17 +49,27 @@ MainWindow::MainWindow(QWidget *parent)
     } else {
         ui->textEdit->append("Redis 连接成功");
     }
-
+/*
     QTextBlock blocks=ui->textEdit->document()->findBlockByNumber(1);
     const std::string agent_action_decide=blocks.text().toStdString();
 
-
+    qDebug()<<agent_action_decide;
+    connect(ui->pushButton,&QPushButton::clicked,[=](){
+        qDebug()<<agent_action_decide;
+    });
+*/
     //const QString key_agent_test_id="001";
     //const QString value=QString::fromStdString(agent_action_decide);
     QString cmd;
     connect(ui->setBtn,&QPushButton::clicked,[&](){
+        QTextBlock blocks=ui->textEdit->document()->findBlockByNumber(1);
+        const std::string agent_action_decide=blocks.text().toStdString();
+
         const QString key_agent_test_id="001";
         QString value=QString::fromStdString(agent_action_decide);
+        if(value==""){
+            QMessageBox::warning(this,"Waring","值不能为空");
+            return;}
         cmd=QString("SET %1 %2").arg(key_agent_test_id,value);
         QString result=redismanager->execommand(cmd);
         ui->textEdit->append("redis:"+result);
