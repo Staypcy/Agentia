@@ -37,8 +37,9 @@ private:
     DataDisplay *SumDataDisplay;
     DataDisplay *BaseDataDisplay;
     GridWorld* gridworld;
-
-
+public slots:
+    //在这里处理agent返回的数据，并将数据储存在redis里
+    void sendAgentDecideToredis(const QString &agent_decide_from_network);
 public:
     NetWorkManager* Netmanager;
 

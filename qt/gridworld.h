@@ -8,6 +8,9 @@
 #include<vector>
 #include"Agent.h"
 
+#include" redisworker.h"
+
+
 const int gridsize=20;
 
 enum Building {
@@ -42,7 +45,7 @@ public:
 private:
     std::vector<Agent*> agents;
 signals:
-
+    void updated_world(Agent* temp);
 public:
     QVector<QVector<Gridcell>>gridset;
 };

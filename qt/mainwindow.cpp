@@ -17,7 +17,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     ui->setupUi(this);
     Netmanager=new NetWorkManager(this);
-
+    redismanager=new redisWorker(this);
     Netmanager->textEdit=ui->textEdit;
 
     //>>test_for_redis
@@ -39,12 +39,24 @@ MainWindow::MainWindow(QWidget *parent)
         gridworld->addAgent();
     });
     connect(ui->pushButton,&QPushButton::clicked,Netmanager,&NetWorkManager::onselfclicked);
-
+/*
     connect(Netmanager->manager,&QNetworkAccessManager::finished,Netmanager,&NetWorkManager::onNetworkReplay);
+
+    connect(gridworld,&GridWorld::updated_world,[=](Agent*agent_temp){
+        //Netmanager->onselfclicked();网络请求是异步的，也就是说可能在这条语句之前就已经连接了，那么这个时候就会将旧链接断开
+        //同时一个信号连接多个槽函数，但是又只有一个networker实例，导致导致错误出现的多个lambada没有正确执行
+        connect(Netmanager->manager,&QNetworkAccessManager::finished,Netmanager,&NetWorkManager::onNetworkReply_to_redis);
+        connect(Netmanager,&NetWorkManager::AgentReply,[=](QString agentReply){
+            QString cmd=QString("SET %1 %2").arg(QString::fromStdString(agent_temp->id),agentReply);
+            redismanager->execommand(cmd);
+        });
+    });*/
+    connect(Netmanager->manager,&QNetworkAccessManager::finished,Netmanager,&NetWorkManager::onNetworkReply_to_redis);
+    connect(Netmanager,&NetWorkManager::AgentReply,this,&MainWindow::sendAgentDecideToredis);
 
     //>>test_for_redis
     int port=6379;
-    if (!redismanager->connectToredis()) {
+    if (!redismanager->connectToredis("127.0.0.1",port)) {
         ui->textEdit->append("警告：Redis 连接失败，请检查服务是否运行");
     } else {
         ui->textEdit->append("Redis 连接成功");
@@ -65,7 +77,9 @@ MainWindow::MainWindow(QWidget *parent)
         QTextBlock blocks=ui->textEdit->document()->findBlockByNumber(1);
         const std::string agent_action_decide=blocks.text().toStdString();
 
-        const QString key_agent_test_id="001";
+        //暂且先只创建一位agent，后续实现循环将创建所有的agents的id提取
+        const QString key_agent_test_id=QString::fromStdString(gridworld->getAgents()[0]->id);
+
         QString value=QString::fromStdString(agent_action_decide);
         if(value==""){
             QMessageBox::warning(this,"Waring","值不能为空");
@@ -76,7 +90,9 @@ MainWindow::MainWindow(QWidget *parent)
     });
 
     connect(ui->getBtn,&QPushButton::clicked,[&](){
-        QString key_agent_test_id="001";
+
+        const QString key_agent_test_id=QString::fromStdString(gridworld->getAgents()[0]->id);
+
         cmd=QString("GET %1").arg(key_agent_test_id);
 
         QString redis_reply=redismanager->execommand(cmd);
@@ -93,4 +109,15 @@ MainWindow::MainWindow(QWidget *parent)
 MainWindow::~MainWindow()
 {
     delete ui;
+}
+
+void MainWindow::sendAgentDecideToredis(const QString& agent_decide_from_network)
+{
+    for(auto temp:gridworld->getAgents()){
+        QString agent_redis_key=QString::fromStdString(temp->id);
+        QString agent_redis_value=QString::fromStdString(Action_to_QString(temp->decide(agent_decide_from_network)));
+
+        QString cmd=(QString("SET %1 %2").arg(agent_redis_key,agent_redis_value));
+        redismanager->execommand(cmd);
+    }
 }

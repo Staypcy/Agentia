@@ -1,6 +1,8 @@
 #include "gridworld.h"
 #include<QRandomGenerator>
+#include<QString>
 #include<QRect>
+#include<QDebug>
 
 GridWorld::GridWorld(QWidget *parent)
     : QWidget{parent}
@@ -151,9 +153,12 @@ void GridWorld::addAgent()
 {
     Status sta;//怎么会有这种个问题啊： Most Vexing Parse 服了
     Position pos(12, 12);
-    std::string id = "test_01";
     AgentType type = AgentType::Worker;
+
+    size_t reco=agents.size();
+    std::string id="test_"+std::to_string(reco);
     Agent* New=new Agent(id, type, sta, pos);
+
     agents.push_back(New);
 }
 
@@ -162,7 +167,20 @@ void GridWorld::updateWorld()
     //test,this is not the finally version
     std::vector<Action>actions;//每位agent的动作
     for (Agent* agent : agents) {
-        actions.push_back(agent->decide());
+
+        redisWorker redis_worker_temp(this);
+        if(!redis_worker_temp.connectToredis("127.0.0.1",6379)){
+            qDebug()<<"未连接到redis->redis_worker_temp";
+        }
+
+        QString agent_id=QString::fromStdString(agent->id);
+
+        QString cmd(QString ("GET %1").arg(agent_id));
+
+        QString redis_reply=redis_worker_temp.execommand(cmd);
+        int start=redis_reply.indexOf(':')+1;
+        QString agent_reply=redis_reply.mid(start);
+        actions.push_back(agent->decide(agent_reply));
     }
 
     //take actions
@@ -170,30 +188,30 @@ void GridWorld::updateWorld()
         Agent* temp = agents[i];
         Action action_temp = actions[i];
         Position pos = temp->pos;
-
+        //qDebug()<<QString::fromStdString(temp->id)<<":"<<pos.x<<","<<pos.y;
         switch (action_temp)
         {
         case MoveUp:
             pos.y--;
-            if (isOutWorld(pos.x, pos.y)) {
+            if (!isOutWorld(pos.x, pos.y)) {
                 temp->move(action_temp);
             }
             break;
         case MoveDown:
             pos.y++;
-            if (isOutWorld(pos.x, pos.y)) {
+            if (!isOutWorld(pos.x, pos.y)) {
                 temp->move(action_temp);
             }
             break;
         case MoveRight:
             pos.x++;
-            if (isOutWorld(pos.x, pos.y)) {
+            if (!isOutWorld(pos.x, pos.y)) {
                 temp->move(action_temp);
             }
             break;
         case MoveLeft:
             pos.x--;
-            if (isOutWorld(pos.x, pos.y)) {
+            if (!isOutWorld(pos.x, pos.y)) {
                 temp->move(action_temp);
             }
             break;
@@ -215,6 +233,8 @@ void GridWorld::updateWorld()
         default:
             break;
         }
+        //temp->getPos();
+        //emit updated_world(temp);这样会信号爆炸
     }
 
     update();
@@ -224,7 +244,7 @@ bool GridWorld::isOutWorld(int x,int y)
 {
     int col = gridset.size();
     int row = gridset[0].size();
-    if ((x < 0 || x >= col) && (y < 0 || y >= row))return false;
-    return true;
+    if ((x < 0 || x >= col) && (y < 0 || y >= row))return true;
+    return false;
 }
 

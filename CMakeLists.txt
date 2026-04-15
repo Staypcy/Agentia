@@ -13,11 +13,13 @@ set(CPP_SOURCES
     cpp/Agent.cpp
     cpp/NetWorkManager.cpp
     "cpp/ redisworker.cpp"
+    cpp/redismessager.cpp
 )
 set(CPP_HEADERS
     cpp/Agent.h
     cpp/NetWorkManager.h
     "cpp/ redisworker.h"
+    cpp/redismessager.h
 )
 
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)

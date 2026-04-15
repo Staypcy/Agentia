@@ -1,5 +1,7 @@
 #include<iostream>
 #include<string>
+#include<QString>
+#include<QDebug>
 //¿‡–Õ
 enum AgentType {
 	Manager,
@@ -97,7 +99,45 @@ public:
 		pos = pos1;
 	}
 
-	virtual Action decide();
+    virtual Action decide(QString agent_decide_form_network);
 	virtual void interact(Agent& other);
 	void move(Action movedir);
+
+    //test fuction for agent`s pos
+    void getPos(){
+        qDebug()<<QString::fromStdString(id)<<pos.x<<","<<pos.y;
+    }
 };
+
+
+
+inline const std::string Action_to_QString(Action act){
+    std::string act_str;
+    switch (act) {
+    case MoveUp:
+        act_str="MoveUp";
+        break;
+    case MoveDown:
+        act_str="MoveDown";
+        break;
+    case MoveRight:
+        act_str="MoveRight";
+        break;
+    case MoveLeft:
+        act_str="MoveLeft";
+        break;
+    case Work:
+        act_str="Work";
+        break;
+    case Interact:
+        act_str="Interact";
+        break;
+    case Staying:
+        act_str="Staying";
+        break;
+    default:
+        act_str="Staying";
+        break;
+    }
+    return act_str;
+}

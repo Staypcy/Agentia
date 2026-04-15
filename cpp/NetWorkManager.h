@@ -16,4 +16,8 @@ public:
 public slots:
     void onselfclicked();
     void onNetworkReplay(QNetworkReply* reply);
+
+    void onNetworkReply_to_redis(QNetworkReply *reply);
+signals:
+    void AgentReply(QString aiReply);
 };

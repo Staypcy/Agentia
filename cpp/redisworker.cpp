@@ -25,6 +25,8 @@ QString redisWorker::execommand(QString cmd)
     QString result;
 
     redisReply*reply=(redisReply*)redisCommand(c,cmd.toStdString().c_str());
+    if(reply==nullptr)return "reply is nullptr.";
+
     switch (reply->type) {
     case REDIS_REPLY_STRING:
         result=QString::fromStdString(std::string(reply->str,reply->len));
@@ -60,7 +62,7 @@ void redisWorker::disconnect()
 bool redisWorker::connectToredis(const QString &host, const int &port)
 {
     struct timeval timeout={2,0};
-    c=redisConnectWithTimeout("127.0.0.1",6379,timeout);
+    c=redisConnectWithTimeout(host.toStdString().c_str(),port,timeout);
 
     if(!c||c->err){
         if(c==nullptr){
