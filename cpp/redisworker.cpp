@@ -9,6 +9,15 @@ redisWorker::redisWorker(QObject *parent)
 
 redisWorker::~redisWorker()
 {
+    if(messager){
+        messager->stop();
+    }
+    if(subThread){
+        subThread->quit();
+        subThread->wait();
+        delete subThread;
+        subThread=nullptr;
+    }
     disconnect();
 }
 
@@ -61,7 +70,7 @@ void redisWorker::disconnect()
 
 void redisWorker::publish(const QString &channel, const QString &message)
 {
-    if(!connectToredis("127.0.0.1",6379)){
+    if(!c){
         qDebug()<<"未连接到redis服务器";
         return;
     }
@@ -87,7 +96,7 @@ void redisWorker::subscribe(const QString &channel)
     }
 
     subThread=new QThread(this);
-    messager=new redisMessager(this);
+    messager=new redisMessager(nullptr);
     messager->moveToThread(subThread);
 
     //subscribe

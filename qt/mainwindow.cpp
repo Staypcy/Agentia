@@ -17,17 +17,17 @@ MainWindow::MainWindow(QWidget *parent)
 
     ui->setupUi(this);
     Netmanager=new NetWorkManager(this);
-    redismanager=new redisWorker(this);
     Netmanager->textEdit=ui->textEdit;
 
     //>>test_for_redis
     redismanager=new redisWorker(this);
-    //<<test_for_redis
 
 
     BaseDataDisplay=ui->BaseDataDisplay;
     SumDataDisplay=ui->SumDataDisplay;
+
     gridworld=ui->gridworld;
+    gridworld->setRedisWorker(redismanager);
 
     BaseDataDisplay->Display->setReadOnly(true);
     SumDataDisplay->Display->setReadOnly(true);
@@ -38,19 +38,9 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->pushButton,&QPushButton::clicked,[=]{
         gridworld->addAgent();
     });
+    //网络连接
     connect(ui->pushButton,&QPushButton::clicked,Netmanager,&NetWorkManager::onselfclicked);
-/*
-    connect(Netmanager->manager,&QNetworkAccessManager::finished,Netmanager,&NetWorkManager::onNetworkReplay);
 
-    connect(gridworld,&GridWorld::updated_world,[=](Agent*agent_temp){
-        //Netmanager->onselfclicked();网络请求是异步的，也就是说可能在这条语句之前就已经连接了，那么这个时候就会将旧链接断开
-        //同时一个信号连接多个槽函数，但是又只有一个networker实例，导致导致错误出现的多个lambada没有正确执行
-        connect(Netmanager->manager,&QNetworkAccessManager::finished,Netmanager,&NetWorkManager::onNetworkReply_to_redis);
-        connect(Netmanager,&NetWorkManager::AgentReply,[=](QString agentReply){
-            QString cmd=QString("SET %1 %2").arg(QString::fromStdString(agent_temp->id),agentReply);
-            redismanager->execommand(cmd);
-        });
-    });*/
     connect(Netmanager->manager,&QNetworkAccessManager::finished,Netmanager,&NetWorkManager::onNetworkReply_to_redis);
     connect(Netmanager,&NetWorkManager::AgentReply,this,&MainWindow::sendAgentDecideToredis);
 
@@ -61,17 +51,9 @@ MainWindow::MainWindow(QWidget *parent)
     } else {
         ui->textEdit->append("Redis 连接成功");
     }
-/*
-    QTextBlock blocks=ui->textEdit->document()->findBlockByNumber(1);
-    const std::string agent_action_decide=blocks.text().toStdString();
 
-    qDebug()<<agent_action_decide;
-    connect(ui->pushButton,&QPushButton::clicked,[=](){
-        qDebug()<<agent_action_decide;
-    });
-*/
-    //const QString key_agent_test_id="001";
-    //const QString value=QString::fromStdString(agent_action_decide);
+
+/*
     QString cmd;
     connect(ui->setBtn,&QPushButton::clicked,[&](){
         QTextBlock blocks=ui->textEdit->document()->findBlockByNumber(1);
@@ -97,9 +79,23 @@ MainWindow::MainWindow(QWidget *parent)
 
         QString redis_reply=redismanager->execommand(cmd);
         ui->textEdit->append("redis:"+redis_reply);
-    });
+    });*/
 
     //<<test_for_redis
+
+    redismanager->subscribe("Agent:Decision");
+    connect(redismanager,&redisWorker::newMessage,[=](const QString&channel,const QString&message){
+        QString content=message;
+        qDebug()<<message;
+        QStringList parts=content.split(":");
+        QString id=parts[0];
+        QString action=parts[1];
+        for(auto temp:gridworld->getAgents()){
+            Action action_A=temp->decide(action);
+            gridworld->actions[id]=action_A;
+        }
+        qDebug()<<id<<action;
+    });
 
     QTimer* timer=new QTimer(this);
     connect(timer,&QTimer::timeout,gridworld,&GridWorld::updateWorld);
@@ -112,12 +108,33 @@ MainWindow::~MainWindow()
 }
 
 void MainWindow::sendAgentDecideToredis(const QString& agent_decide_from_network)
-{
+{/*
     for(auto temp:gridworld->getAgents()){
         QString agent_redis_key=QString::fromStdString(temp->id);
         QString agent_redis_value=QString::fromStdString(Action_to_QString(temp->decide(agent_decide_from_network)));
 
         QString cmd=(QString("SET %1 %2").arg(agent_redis_key,agent_redis_value));
         redismanager->execommand(cmd);
+    }*/
+    for(auto temp:gridworld->getAgents()){
+        QString agent_redis_pub(QString::fromStdString(temp->id+":"));
+        agent_redis_pub+=QString::fromStdString(Action_to_QString(temp->decide(agent_decide_from_network)));
+        redismanager->publish("Agent:Decision",agent_redis_pub);
     }
+}
+
+void MainWindow::updatetheActions()
+{
+    Agent*temp;
+    connect(redismanager,&redisWorker::newMessage,[=](const QString&channel,const QString&message){
+        QString content=message;
+        qDebug()<<message;
+
+        QStringList parts=content.split(":");
+        QString id=parts[0];
+        QString action=parts[1];
+        Action action_A=temp->decide(action);
+        gridworld->actions[id]=action_A;
+        qDebug()<<id<<action;
+    });
 }

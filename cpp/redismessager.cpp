@@ -26,11 +26,11 @@ void redisMessager::ReceiveMessageToRedisWhile(const QString &channel)
         return;
     }
 
-    redisAppendCommand(context,channel.toStdString().c_str());
-    if(!m_stop){
+    redisAppendCommand(context,"SUBSCRIBE %s",channel.toStdString().c_str());
+    while(!m_stop){
         redisReply*reply=nullptr;
         if((redisGetReply(context,(void**)(&reply))==REDIS_OK)){
-            if(reply->type==REDIS_REPLY_ARRAY&&reply->elements==3){
+            if(reply!=nullptr&&reply->type==REDIS_REPLY_ARRAY&&reply->elements==3){
                 //["message"],频道名,消息内容
                 QString head=reply->element[0]->str;
                 if(head=="message"){
@@ -40,15 +40,18 @@ void redisMessager::ReceiveMessageToRedisWhile(const QString &channel)
                     emit messageReceived(now_channel,now_message);
                 }
             }
+        }else{
+            break;
         }
+    }
+
+    if(context){
+        redisFree(context);
+        context=nullptr;
     }
 }
 
 void redisMessager::stop()
 {
     m_stop=true;
-    if(context){
-        redisFree(context);
-        context=nullptr;
-    }
 }

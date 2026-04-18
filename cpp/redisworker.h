@@ -27,6 +27,6 @@ public:
     void publish(const QString& channel,const QString& message);
     void subscribe(const QString& channel);
 signals:
-    void newMessage();
+    void newMessage(const QString& channel,const QString& message);
 
 };

@@ -19,7 +19,7 @@
      <rect>
       <x>0</x>
       <y>0</y>
-      <width>1238</width>
+      <width>1298</width>
       <height>602</height>
      </rect>
     </property>
@@ -51,16 +51,16 @@
        <item>
         <layout class="QHBoxLayout" name="horizontalLayout_2">
          <item>
-          <widget class="QPushButton" name="getBtn">
+          <widget class="QPushButton" name="setbtn">
            <property name="text">
-            <string>getBtn</string>
+            <string>setbtn</string>
            </property>
           </widget>
          </item>
          <item>
-          <widget class="QPushButton" name="setBtn">
+          <widget class="QPushButton" name="getbtn">
            <property name="text">
-            <string>setBtn</string>
+            <string>getbtn</string>
            </property>
           </widget>
          </item>

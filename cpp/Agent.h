@@ -80,7 +80,7 @@ struct Position {
 
 
 enum Action {
-    MoveUp,MoveDown,MoveRight,MoveLeft,Work,Interact,Staying
+    Staying,MoveUp,MoveDown,MoveRight,MoveLeft,Work,Interact
 };
 
 class Agent {

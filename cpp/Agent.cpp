@@ -2,19 +2,19 @@
 #include <cstdlib>
 
 int getEnumvalue(const QString& actions){
-    if(actions=="MoveUp"){
+    if(actions=="Staying"){
         return 0;
     }
-    if(actions=="MoveDown"){
+    if(actions=="MoveUp"){
         return 1;
     }
-    if(actions=="MoveRight"){
+    if(actions=="MoveDown"){
         return 2;
     }
-    if(actions=="MoveLeft"){
+    if(actions=="MoveRight"){
         return 3;
     }
-    if(actions=="Staying"){
+    if(actions=="MoveLeft"){
         return 4;
     }
     if(actions=="Work"){

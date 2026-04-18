@@ -44,5 +44,7 @@ public:
     NetWorkManager* Netmanager;
 
     redisWorker* redismanager;
+
+    void updatetheActions();
 };
 #endif // MAINWINDOW_H

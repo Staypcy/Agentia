@@ -33,7 +33,7 @@ void NetWorkManager::onselfclicked()
     //MoveUp,MoveDown,MoveRight,MoveLeft,Staying,Work,Interact
     userMSG["content"]="你现在处于gridworld[10,10]的位置，周围很空旷，需要你随便逛逛来确认环境"
                         "请你在这几个单词里选择一个单词：MoveUp,MoveDown,MoveRight,MoveLeft,Staying,Work,Interact"
-                        "来探索周围的世界，你的上一次动作是MoveUp"
+                        "来探索周围的世界，你的上一次动作是MoveUp,你将选择MoveDown"
                         "你回答的格式只能是这几个单词，不准出现任何除这几个之外的字样";
     messages.append(userMSG);
     obj["messages"]=messages;

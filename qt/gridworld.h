@@ -42,12 +42,19 @@ public:
     void addAgent();
     void updateWorld();
     bool isOutWorld(int x,int y);
+
+    void setRedisWorker(redisWorker*temp){m_worker=temp;}
+    void send_AgentStatus_AndWorld_ToRedis(redisWorker *redis);
 private:
     std::vector<Agent*> agents;
 signals:
     void updated_world(Agent* temp);
 public:
     QVector<QVector<Gridcell>>gridset;
+
+    std::map<QString,Action>actions;
+
+    redisWorker*m_worker=nullptr;
 };
 
 

@@ -4,6 +4,10 @@
 #include<QRect>
 #include<QDebug>
 
+#include<QJsonArray>
+#include<QJsonObject>
+#include<QJsonDocument>
+
 GridWorld::GridWorld(QWidget *parent)
     : QWidget{parent}
 {
@@ -171,8 +175,8 @@ void GridWorld::addAgent()
 
 void GridWorld::updateWorld()
 {
-    //test,this is not the finally version
-    std::vector<Action>actions;//每位agent的动作
+    //test,this is not the finally versio
+    /*
     for (Agent* agent : agents) {
 
         redisWorker redis_worker_temp(this);
@@ -188,12 +192,15 @@ void GridWorld::updateWorld()
         int start=redis_reply.indexOf(':')+1;
         QString agent_reply=redis_reply.mid(start);
         actions.push_back(agent->decide(agent_reply));
-    }
+    }*/
 
     //take actions
     for (size_t i = 0; i < agents.size(); i++) {
         Agent* temp = agents[i];
-        Action action_temp = actions[i];
+        Action action_temp = actions[QString::fromStdString(temp->id)];
+
+        qDebug() << "Agent" << QString::fromStdString(temp->id) << "executes action:" << action_temp;
+
         Position temp_pos = temp->pos;
         //qDebug()<<QString::fromStdString(temp->id)<<":"<<pos.x<<","<<pos.y;
         switch (action_temp)
@@ -238,10 +245,16 @@ void GridWorld::updateWorld()
         case Interact:
             break;
         default:
+            qDebug()<<"default";
             break;
         }
-        temp->getPos();
+        actions[QString::fromStdString(temp->id)]=Staying;
+        //temp->getPos();
         //emit updated_world(temp);这样会信号爆炸
+    }
+
+    if(m_worker){
+        send_AgentStatus_AndWorld_ToRedis(m_worker);
     }
 
     update();
@@ -249,11 +262,62 @@ void GridWorld::updateWorld()
 
 bool GridWorld::isOutWorld(int x,int y)
 {
+    if(gridset.isEmpty()||gridset[0].size()==0){
+        return true;
+    }
     int col = gridset.size();
     int row = gridset[0].size();
-    qDebug()<<"col:"<<col;
-    qDebug()<<"row:"<<row;
+    //qDebug()<<"col:"<<col;
+    //qDebug()<<"row:"<<row;
     if ((x >= 0 && x < col) && (y >= 0 && y < row))return false;
     return true;
 }
 
+void GridWorld::send_AgentStatus_AndWorld_ToRedis(redisWorker *redis)
+{
+    if(!redis){
+        qDebug()<<"未连接";
+        return;
+    }
+
+
+    //agent本身的信息
+    QJsonArray AgentState;
+    QJsonObject agentstate;
+    for(auto agent:agents){
+        QJsonObject alldate;
+        agentstate["id"]=QString::fromStdString(agent->id);
+        agentstate["type"]=agent->type;
+        agentstate["x"]=agent->pos.x;
+        agentstate["y"]=agent->pos.y;
+        agentstate["energy"]=agent->status.action_energy.energyValue;
+        AgentState.append(agentstate);
+
+        //gridworld局部信息
+        QJsonArray worlddate;
+        for(int i=-2;i<=2;i++){
+            for(int j=-2;j<=2;j++){
+                int temp_x=agent->pos.x+i;
+                int temp_y=agent->pos.y+j;
+                if(isOutWorld(temp_x,temp_y)){
+                    continue;
+                }
+                QJsonObject gridworld_cell;
+                gridworld_cell["x"]=temp_x;
+                gridworld_cell["y"]=temp_y;
+                gridworld_cell["building"]=gridset[temp_x][temp_y].build;
+                gridworld_cell["resource"]=gridset[temp_x][temp_y].resource;
+
+                worlddate.append(gridworld_cell);
+            }
+        }
+
+        alldate["AgentState"]=AgentState;
+        alldate["WorldDate"]=worlddate;
+
+        QJsonDocument doc(alldate);
+        QString json=doc.toJson(QJsonDocument::Compact);
+
+        redis->publish("Agent:State",json);
+    }
+}
