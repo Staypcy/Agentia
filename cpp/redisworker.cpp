@@ -59,6 +59,49 @@ void redisWorker::disconnect()
     }
 }
 
+void redisWorker::publish(const QString &channel, const QString &message)
+{
+    if(!connectToredis("127.0.0.1",6379)){
+        qDebug()<<"未连接到redis服务器";
+        return;
+    }
+    redisReply*reply=(redisReply*)redisCommand(c,"PUBLISH %s %s",channel.toStdString().c_str(),message.toStdString().c_str());
+
+    if(!reply){
+        qDebug()<<"未连接";
+    }else{
+        freeReplyObject(reply);
+    }
+}
+
+void redisWorker::subscribe(const QString &channel)
+{
+    if(messager){
+        messager->stop();
+    }
+    if(subThread){
+        subThread->quit();
+        subThread->wait();
+        delete subThread;
+        subThread=nullptr;
+    }
+
+    subThread=new QThread(this);
+    messager=new redisMessager(this);
+    messager->moveToThread(subThread);
+
+    //subscribe
+    connect(messager,&redisMessager::messageReceived,this,&redisWorker::newMessage);
+
+    connect(subThread,&QThread::started,[=](){
+        messager->ReceiveMessageToRedisWhile(channel);
+    });
+
+    connect(subThread,&QThread::finished,messager,&redisMessager::deleteLater);
+
+    subThread->start();
+}
+
 bool redisWorker::connectToredis(const QString &host, const int &port)
 {
     struct timeval timeout={2,0};

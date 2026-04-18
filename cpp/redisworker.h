@@ -3,12 +3,17 @@
 #include<hiredis.h>
 #include<async.h>
 #include<adapters/qt.h>   //connect this qt <core>
+#include<QThread>
+#include"redismessager.h"
 
 class redisWorker :public QObject{
 
     Q_OBJECT
 public:
     redisContext* c;
+
+    QThread *subThread;
+    redisMessager* messager;
 public:
     explicit redisWorker(QObject*parent=nullptr);
     ~redisWorker();
@@ -18,4 +23,10 @@ public:
     QString execommand(QString cmd);
 
     void disconnect();
+
+    void publish(const QString& channel,const QString& message);
+    void subscribe(const QString& channel);
+signals:
+    void newMessage();
+
 };

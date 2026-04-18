@@ -130,7 +130,7 @@ void GridWorld::generateWorldmap(int Xsize, int Ysize)
         for(int j=0;j<Ysize;j++){
             if((i==x_g) && (j==y_g)){
                 gridset[i][j].build=Government;
-                gridset[i][j].resource=0;
+                gridset[i][j].resource=QRandomGenerator::global()->bounded(30)+10;
             }else{
                 int r=QRandomGenerator::global()->bounded(5);
 
