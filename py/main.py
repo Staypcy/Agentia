@@ -14,10 +14,26 @@ headers={
     "Content-Type": "application/json"
 }
 
-system_prompt="""你是一个生活在网格世界的一个agent,你充满好奇心，可以随便逛逛这个世界
-                但是，你只能通过回答:MoveUp,MoveDown,MoveLeft,MoveRight,Staying,Work,Interact
-                这几个单词来执行你的操作，你的回答的格式也只能是这几个单词，不能出现任何其他的字样，标点符号也不应该出现    
-            """
+system_prompt=system_prompt = """你是一个生活在网格世界中的智能体。你需要根据当前位置、能量以及周围5x5范围内的建筑信息，做出最合理的动作。
+
+可用的动作只有以下7个单词（回答时只能输出一个单词，不要有任何其他字符、空格或换行）：
+MoveUp, MoveDown, MoveLeft, MoveRight, Staying, Work, Interact
+
+各建筑类型说明（building字段值）：
+0 = Empty（空地）
+1 = Supermarket（超市，可在此处Work获得资源）
+2 = Financialexchange（金融中心，可在此处Work）
+3 = Resident（住宅，可在此处休息恢复能量）
+4 = Park（公园，可在此处Interact或休息）
+5 = Government（政府）
+
+决策原则：
+- 如果能量低于30，应优先前往 Resident(3) 或 Staying 恢复能量。
+- 如果周围有 Supermarket(1) 或 Financialexchange(2)，且能量充足，可以移动到该格子并 Work。
+- 如果周围都是 Empty(0)，可以随机探索，但尽量避免来回重复移动。
+- 如果靠近边界，不要尝试走出界外。
+- 每次决策必须独立，不要重复上一次的动作，除非确实有必要（比如持续向某个目标移动）。
+"""
 #使用lifespan来管理
 async def lifespan(app:FastAPI):
     r=redis.Redis(host='localhost', port=6379, decode_responses=True)
@@ -47,36 +63,76 @@ async def lifespan(app:FastAPI):
     await task
     r.close()
 
+last_decision={}
+
 app = FastAPI(lifespan=lifespan)
+world_dest_list=[]
 async def process_agent_data(data:dict):
     agent=data['AgentState'][0]
+    agent_id = agent['id']
     world=data["WorldDate"]
-    #决策逻辑的实现
-    user_content=f"当前状态：Type={agent['type']}, Pos=({agent['x']},{agent['y']}), Energy={agent['energy']},你周边的信息（内容格式是Json）:{world}"
-#    for temp in world:
-#        print(f"temp['x']+","+temp['y']")
-#        print(temp['building'])
-#        print(temp['resource'])
-    payload={
-        "model":"qwen-plus",
-        "messages":[
-            {"role":"system","content":system_prompt},
-            {"role":"user","content":user_content}
+
+    world_desc_list = []
+    for cell in world:
+        b_type = cell["building"]
+        building_name = ["空地", "超市", "金融中心", "住宅", "公园", "政府"][b_type] if b_type <= 5 else "未知"
+        world_desc_list.append(
+            f"({cell['x']},{cell['y']})为{building_name}，资源量{cell['resource']}"
+        )
+
+    world_desc = "；".join(world_desc_list)
+
+    agent_type_names = ['管理者', '居民', '工人']
+    user_content = (
+        f"当前状态：身份为{agent_type_names[agent['type']]}，"
+        f"坐标({agent['x']},{agent['y']})，能量{agent['energy']}。\n"
+        f"周边5x5范围内的情况：{world_desc}\n"
+        f"请根据以上信息，从七个动作中选择一个并只输出该单词。"
+    )
+
+    payload = {
+        "model": "qwen-plus",
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content}
         ],
-        "temperature":1.3,
-        "max_tokens":20
+        "temperature": 0.9,
+        "max_tokens": 10,
+        "top_p": 0.95
     }
+
     try:
-        response=requests.post(url,json=payload,headers=headers,timeout=10)#话说这个timeout参数是干什么的？
+        response=requests.post(url,json=payload,headers=headers,timeout=10)
         if response.status_code==200:
             result=response.json()
             decision=result["choices"][0]["message"]["content"].strip()
 
+            import re
+            match=re.search(r'(MoveUp|MoveDown|MoveLeft|MoveRight|Staying|Work|Interact)',decision,re.IGNORECASE)
+            if match:
+                decision=match.group(1)
+            else:
+                decision="Staying"
+
             print(f"Ai decision: {decision}")
+            prev_action=last_decision.get(agent_id,"")
+            move_actions={"MoveUp", "MoveDown", "MoveLeft", "MoveRight"}
+
+            if decision == prev_action and decision in move_actions:
+                rand_action=list(move_actions-{decision})
+
+                if rand_action:
+                    import random
+                    decision=random.choice(rand_action)
+                    print(f"ai重复输出{prev_action},随机行动为{decision}")
+                    print(f"Ai decision: {decision}")
+
+            last_decision[agent_id] = decision
+
             r=redis.Redis(host='localhost', port=6379, decode_responses=True)
             r.publish("Agent:Decision",json.dumps({
                 "id":agent['id'],
-                "action":decision
+                "decision":decision
             }))
         else:
             print(f"与ai的连接失败")

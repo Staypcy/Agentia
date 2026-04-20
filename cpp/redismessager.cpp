@@ -54,4 +54,9 @@ void redisMessager::ReceiveMessageToRedisWhile(const QString &channel)
 void redisMessager::stop()
 {
     m_stop=true;
+
+    if(context){
+        redisFree(context);
+        context=nullptr;
+    }
 }

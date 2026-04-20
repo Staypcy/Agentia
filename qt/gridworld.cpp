@@ -180,10 +180,8 @@ void GridWorld::updateWorld()
     for (Agent* agent : agents) {
 
         redisWorker redis_worker_temp(this);
-        if(!redis_worker_temp.connectToredis("127.0.0.1",6379)){
-            qDebug()<<"未连接到redis->redis_worker_temp";
+        if(!redis_worker_temp.connectToredis("127.0.0.1",6379))
         }
-
         QString agent_id=QString::fromStdString(agent->id);
 
         QString cmd(QString ("GET %1").arg(agent_id));
@@ -248,7 +246,7 @@ void GridWorld::updateWorld()
             qDebug()<<"default";
             break;
         }
-        actions[QString::fromStdString(temp->id)]=Staying;
+        //actions[QString::fromStdString(temp->id)]=Staying;
         //temp->getPos();
         //emit updated_world(temp);这样会信号爆炸
     }
@@ -282,10 +280,11 @@ void GridWorld::send_AgentStatus_AndWorld_ToRedis(redisWorker *redis)
 
 
     //agent本身的信息
-    QJsonArray AgentState;
-    QJsonObject agentstate;
     for(auto agent:agents){
         QJsonObject alldate;
+
+        QJsonArray AgentState;
+        QJsonObject agentstate;
         agentstate["id"]=QString::fromStdString(agent->id);
         agentstate["type"]=agent->type;
         agentstate["x"]=agent->pos.x;

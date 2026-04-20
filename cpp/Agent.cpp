@@ -32,7 +32,7 @@ Action Agent::decide(QString agent_decide_form_network){
 	int index = rand() % 6;
     return actions[index];
 */
-    static Action actions[]={ MoveUp,MoveDown,MoveRight,MoveLeft,Staying,Work,Interact };
+    static Action actions[]={ Staying,MoveUp,MoveDown,MoveRight,MoveLeft,Work,Interact };
     int agent_decide_value=getEnumvalue(agent_decide_form_network);
     switch (agent_decide_value) {
     case 0:

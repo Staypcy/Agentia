@@ -1,9 +1,8 @@
-#pragma once
-#include< redisworker.h>
+#include<redisworker.h>
 #include<qDebug>
 
 redisWorker::redisWorker(QObject *parent)
-    :QObject(parent),c(nullptr)
+    :QObject(parent),c(nullptr),messager(nullptr),subThread(nullptr)
 {
 }
 
@@ -18,6 +17,12 @@ redisWorker::~redisWorker()
         delete subThread;
         subThread=nullptr;
     }
+
+    if(messager){
+        delete messager;
+        messager=nullptr;
+    }
+
     disconnect();
 }
 

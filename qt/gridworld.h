@@ -8,7 +8,9 @@
 #include<vector>
 #include"Agent.h"
 
-#include" redisworker.h"
+#include"redisworker.h"
+
+#include<QPointer>
 
 
 const int gridsize=20;

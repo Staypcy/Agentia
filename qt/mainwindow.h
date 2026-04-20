@@ -14,7 +14,7 @@
 
 #include "gridworld.h"
 #include"NetWorkManager.h"
-#include" redisworker.h"
+#include"redisworker.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -29,6 +29,8 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow() override;
+public slots:
+    void displayAllData(int reco);
 
 private:
     Ui::MainWindow *ui;

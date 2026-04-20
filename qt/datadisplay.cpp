@@ -5,5 +5,7 @@ DataDisplay::DataDisplay(QWidget *parent)
     : QWidget{parent}
 {
     Display=new QTextEdit(this);
+    Display->setReadOnly(true);
+
 
 }

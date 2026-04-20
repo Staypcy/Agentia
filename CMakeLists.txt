@@ -12,13 +12,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CPP_SOURCES
     cpp/Agent.cpp
     cpp/NetWorkManager.cpp
-    "cpp/ redisworker.cpp"
+    cpp/redisworker.cpp
     cpp/redismessager.cpp
 )
 set(CPP_HEADERS
     cpp/Agent.h
     cpp/NetWorkManager.h
-    "cpp/ redisworker.h"
+    cpp/redisworker.h
     cpp/redismessager.h
 )
 
@@ -37,9 +37,11 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(Agentia
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
-        qt/datadisplay.h qt/datadisplay.cpp
+        qt/datadisplay.h
+        qt/datadisplay.cpp
         #qt/Resource.qrc
-        qt/gridworld.h qt/gridworld.cpp
+        qt/gridworld.h
+        qt/gridworld.cpp
         ${CPP_SOURCES}
         ${CPP_HEADERS}
     )
