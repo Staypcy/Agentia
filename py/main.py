@@ -91,7 +91,7 @@ async def process_agent_data(data:dict):
     )
 
     payload = {
-        "model": "qwen-plus",
+        "model": "qwen-vl-plus-latest",
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_content}

@@ -105,6 +105,10 @@ void MainWindow::displayAllData(int reco)
     int number_agent=agents.size();
     int workers=0;
     int residenters=0;
+    int hungryReco=0;
+    int totalEnergy=0;
+
+    int thinkingReco=0,movingReco=0,workingReco=0,interactingReco=0;
     for(auto temp:agents){
         switch (temp->type) {
         case AgentType::Worker:
@@ -116,20 +120,111 @@ void MainWindow::displayAllData(int reco)
         default:
             break;
         }
+        if (temp->status.eat_Status == EatStatus::Hungry)
+            hungryReco++;
+
+        totalEnergy+=temp->status.action_energy.energyValue;
+
+        switch (temp->status.ing_Status) {
+        case IngStatus::Thinking:
+            thinkingReco++;
+            break;
+        case IngStatus::Moveing:
+            movingReco++;
+            break;
+        case IngStatus::Working:
+            workingReco++;
+            break;
+        case IngStatus::Interacting:
+            interactingReco++;
+            break;
+        default:
+            break;
+        }
     }
+
+    double avgEnergy=totalEnergy>0?static_cast<double>(totalEnergy)/number_agent:0.0;
 
     QString base_data=QString(
         "Agent 总数: %1\n"
         "  工人: %2\n"
-        "  居民: %3\n").arg((std::to_string(number_agent)),std::to_string(workers),std::to_string(residenters));
+        "  居民: %3\n"
+        "  饥饿数量: %4"
+        "  平均能量: %5"
+        "  状态:"
+        "  思考: %6"
+        "  移动: %7"
+        "  工作: %8"
+        "  交互: %9")
+        .arg(number_agent)
+        .arg(workers)
+        .arg(residenters)
+        .arg(hungryReco)
+        .arg(avgEnergy)
+        .arg(thinkingReco)
+        .arg(movingReco)
+        .arg(workingReco)
+        .arg(interactingReco);
     BaseDataDisplay->Display->setPlainText(base_data);
 
 
+    int col=gridset.size();
+    int row=gridset[0].size();
+    int total_cell=col*row;
 
+    int empty=0,supermarket=0,finance=0,resident=0,park=0,gov=0;
+    int total_resource=0;
+
+    for(int i=0;i<col;i++){
+        for(int j=0;j<row;j++){
+            Gridcell temp=gridset[i][j];
+            total_resource+=temp.resource;
+            switch (temp.build) {
+            case Building::Empty:
+                empty++;
+                break;
+            case Building::Supermakert:
+                supermarket++;
+                break;
+            case Building::Financialexchange:
+                finance++;
+                break;
+            case Building::Resident:
+                resident++;
+                break;
+            case Building::Park:
+                park++;
+                break;
+            default:
+                gov++;
+                break;
+            }
+        }
+    }
     QString total_time=QString::fromStdString(std::to_string(500*reco)+"ms");
 
+    double avg_resource_for_everyAgent=total_resource>0?static_cast<double>(total_resource)/number_agent:0.0;
 
-    QString sum_data=QString("当前世界经过总时间: %2\n").arg(total_time);
+    QString sum_data=QString("当前世界经过总时间: %1\n"
+                            "当前世界尺寸: %2 * %3\n"
+                            "建筑统计: \n"
+                            "空地（Empty）: %4\n"
+                            "超市（Supermaket）: %5\n"
+                            "金融（Finance）: %6\n"
+                            "公园（Park）: %7\n"
+                            "政府（Government）: %8\n"
+                            "总资源: %9\n"
+                            "agent均资源: %10")
+                           .arg(total_time)
+                           .arg(col)
+                           .arg(row)
+                           .arg(empty)
+                           .arg(supermarket)
+                           .arg(finance)
+                           .arg(park)
+                           .arg(gov)
+                           .arg(total_resource)
+                           .arg(avg_resource_for_everyAgent);
     SumDataDisplay->Display->setPlainText(sum_data);
 }
 
