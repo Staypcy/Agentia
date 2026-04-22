@@ -175,23 +175,6 @@ void GridWorld::addAgent()
 
 void GridWorld::updateWorld()
 {
-    //test,this is not the finally versio
-    /*
-    for (Agent* agent : agents) {
-
-        redisWorker redis_worker_temp(this);
-        if(!redis_worker_temp.connectToredis("127.0.0.1",6379))
-        }
-        QString agent_id=QString::fromStdString(agent->id);
-
-        QString cmd(QString ("GET %1").arg(agent_id));
-
-        QString redis_reply=redis_worker_temp.execommand(cmd);
-        int start=redis_reply.indexOf(':')+1;
-        QString agent_reply=redis_reply.mid(start);
-        actions.push_back(agent->decide(agent_reply));
-    }*/
-
     //take actions
     for (size_t i = 0; i < agents.size(); i++) {
         Agent* temp = agents[i];
@@ -200,47 +183,121 @@ void GridWorld::updateWorld()
         qDebug() << "Agent" << QString::fromStdString(temp->id) << "executes action:" << action_temp;
 
         Position temp_pos = temp->pos;
+        int temp_resource=temp->agent_resource;
         //qDebug()<<QString::fromStdString(temp->id)<<":"<<pos.x<<","<<pos.y;
         switch (action_temp)
         {
         case MoveUp:
             temp_pos.y--;
+            temp_resource-=3;
+            if(temp_resource<0){
+                break;
+            }
+            temp->agent_resource-=3;
             if (!isOutWorld(temp_pos.x, temp_pos.y)) {
                 temp->move(action_temp);
             }
             break;
         case MoveDown:
             temp_pos.y++;
+            temp_resource-=3;
+            if(temp_resource<0){
+                break;
+            }
+            temp->agent_resource-=3;
             if (!isOutWorld(temp_pos.x, temp_pos.y)) {
                 temp->move(action_temp);
             }
             break;
         case MoveRight:
             temp_pos.x++;
+            temp_resource-=3;
+            if(temp_resource<0){
+                break;
+            }
+            temp->agent_resource-=3;
             if (!isOutWorld(temp_pos.x, temp_pos.y)) {
                 temp->move(action_temp);
             }
             break;
         case MoveLeft:
             temp_pos.x--;
+            temp_resource-=3;
+            if(temp_resource<0){
+                break;
+            }
+            temp->agent_resource-=3;
             if (!isOutWorld(temp_pos.x, temp_pos.y)) {
                 temp->move(action_temp);
             }
             break;
         case Staying:
-            if (temp->status.action_energy.energyValue <= 95)
-                temp->status.action_energy.energyValue += 5;
+            if(gridset[temp_pos.x][temp_pos.y].build==Building::Resident){
+                if (temp->status.spirit_energy.energyValue <= 80)
+                    temp->status.spirit_energy.energyValue += 20;
 
-            else temp->status.action_energy.energyValue = 100;
+                else temp->status.spirit_energy.energyValue = 100;
+
+                break;
+            }
+            else if(temp_resource>=5&&gridset[temp_pos.x][temp_pos.y].build==Building::Supermakert){
+                temp->agent_resource-=5;
+                if(temp->status.action_energy.energyValue<=85)
+                    temp->status.action_energy.energyValue+=15;
+
+                else temp->status.action_energy.energyValue=100;
+
+                break;
+            }
+            else if(gridset[temp_pos.x][temp_pos.y].build==Building::Park){
+                if(temp->status.spirit_energy.energyValue<=90)
+                    temp->status.spirit_energy.energyValue+=10;
+                else temp->status.spirit_energy.energyValue+=10;
+            }
+            else{
+                qDebug()<<temp->id<<"已无资源";
+            }
+
             break;
         case Work:
-            if (temp->status.action_energy.energyValue <= 5)
-                temp->status.action_energy.energyValue = 0;
-            else temp->status.action_energy.energyValue -= 5;
+            if(temp->status.spirit_energy.energyValue>=10){
+                if(temp->type==AgentType::Worker&&gridset[temp_pos.x][temp_pos.y].build==Building::Financialexchange)
+                {
+                    if(gridset[temp_pos.x][temp_pos.y].resource>=5){
+                        if (temp->status.action_energy.energyValue <= 5)
+                            temp->status.action_energy.energyValue = 0;
+                        else temp->status.action_energy.energyValue -= 5;
 
+                        temp->agent_resource+=15;
+                    }
+                }
+                else if(temp->type==AgentType::Residenter&&gridset[temp_pos.x][temp_pos.y].build==Building::Supermakert){
+                    if(gridset[temp_pos.x][temp_pos.y].resource>=5){
+                        if (temp->status.action_energy.energyValue <= 5)
+                            temp->status.action_energy.energyValue = 0;
+                        else temp->status.action_energy.energyValue -= 5;
+
+                        temp->agent_resource+=15;
+                    }
+                }
+                else qDebug()<<"网格世界 ("<<temp_pos.x<<","<<temp_pos.y<<") 资源枯竭";
+            }else{
+                qDebug()<<temp->id<<"已无心理能量，无法工作";
+            }
+            gridset[temp_pos.x][temp_pos.y].resource-=5;
+            temp->status.spirit_energy.energyValue-=10;
             if (temp->status.action_energy.energyValue <= 30)temp->status.eat_Status = EatStatus::Hungry;
+
             break;
         case Interact:
+            if(temp->status.action_energy.energyValue>=5){
+                if(gridset[temp_pos.x][temp_pos.y].build==Building::Park){
+                    if(temp->status.spirit_energy.energyValue<=95)
+                        temp->status.spirit_energy.energyValue+=5;
+                    else temp->status.spirit_energy.energyValue+=5;
+                }
+                temp->status.action_energy.energyValue-=5;
+            }
             break;
         default:
             qDebug()<<"default";
@@ -290,6 +347,8 @@ void GridWorld::send_AgentStatus_AndWorld_ToRedis(redisWorker *redis)
         agentstate["x"]=agent->pos.x;
         agentstate["y"]=agent->pos.y;
         agentstate["energy"]=agent->status.action_energy.energyValue;
+        agentstate["spirit"]=agent->status.spirit_energy.energyValue;
+        agentstate["resource"]=agent->agent_resource;
         AgentState.append(agentstate);
 
         //gridworld局部信息

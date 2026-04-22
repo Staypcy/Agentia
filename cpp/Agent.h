@@ -89,6 +89,7 @@ public:
 	AgentType type;
 	Status status;
 	Position pos;
+    int agent_resource=60;
 
 public:
     Agent(): id(""), type(AgentType::Residenter), status(), pos(0, 0){}
@@ -102,6 +103,8 @@ public:
     virtual Action decide(QString agent_decide_form_network);
 	virtual void interact(Agent& other);
 	void move(Action movedir);
+
+    void give_resourceToother(Agent &agent);
 
     //test fuction for agent`s pos
     void getPos(){

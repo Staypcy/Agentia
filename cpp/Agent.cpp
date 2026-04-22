@@ -27,7 +27,7 @@ int getEnumvalue(const QString& actions){
 }
 Action Agent::decide(QString agent_decide_form_network){
 /*
-    //ÏÈÊµÏÖÒ»¸ö¼òµ¥µÄËæ»ú¾ö²ß
+    //ï¿½ï¿½Êµï¿½ï¿½Ò»ï¿½ï¿½ï¿½òµ¥µï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     static Action actions[] = { MoveUp,MoveDown,MoveRight,MoveLeft,Staying,Work,Interact };
 	int index = rand() % 6;
     return actions[index];
@@ -79,6 +79,15 @@ void Agent::move(Action movedir) {
 		break;
 	case MoveDown:
 		pos.y++;
-		break;
 	}
+}
+
+void Agent::give_resourceToother(Agent &agent)
+{
+    if(this->agent_resource<20){
+        return;
+    }
+
+    this->agent_resource-=10;
+    agent.agent_resource+=10;
 }

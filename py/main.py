@@ -14,27 +14,58 @@ headers={
     "Content-Type": "application/json"
 }
 
-system_prompt=system_prompt = """你是一个生活在网格世界中的智能体。你需要根据当前位置、能量以及周围5x5范围内的建筑信息，做出最合理的动作。
+system_prompt = """你是一个生活在网格世界中的智能体。你需要根据当前位置、行动能量、精神能量、携带资源以及周围5x5范围内的建筑信息，做出最合理的动作。
 
 可用的动作只有以下7个单词（回答时只能输出一个单词，不要有任何其他字符、空格或换行）：
 MoveUp, MoveDown, MoveLeft, MoveRight, Staying, Work, Interact
 
 各建筑类型说明（building字段值）：
 0 = Empty（空地）
-1 = Supermarket（超市，可在此处Work获得资源）
-2 = Financialexchange（金融中心，可在此处Work）
-3 = Resident（住宅，可在此处休息恢复能量）
-4 = Park（公园，可在此处Interact或休息）
+1 = Supermarket（超市）
+2 = Financialexchange（金融中心）
+3 = Resident（住宅）
+4 = Park（公园）
 5 = Government（政府）
 
+
+规则说明（请仔细阅读，决策时务必遵守）：
+- 无论你进行何种行动，都会消耗你的行动能量
+- 移动（MoveUp/MoveDown/MoveLeft/MoveRight）：消耗3点资源。若资源不足则移动失败（原地不动，不消耗资源）。
+- 工作（Work）：
+  - 消耗行动能量5点
+  - 工人(Worker) 在金融中心(Financialexchange)：消耗5行动能量，获得15资源。
+  - 居民(Residenter) 在超市(Supermakert)：消耗5行动能量，获得15资源。
+  - 其他类型或位置工作无效，不会获得资源，但是消耗行动能量5点，和精神能量10点）。
+  - 工作会消耗精神能量10点
+  - 工作需要你拥有至少10点精神能量
+  - 工作会消耗你所处的网格世界点位的资源，当该点位资源下降到5，你执行Work只会消耗你的行动能量，但不会得到资源
+- 停留（Staying）：
+  - 消耗行动能量5点
+  - 在住宅(Resident)：恢复20精神能量（不超过100）。
+  - 在超市(Supermakert)且携带资源 ≥ 5：消耗5资源，恢复15行动能量（不超过100）。
+  - 在公园(Park)：恢复10精神能量。
+  - 其他位置仅原地停留，无特殊效果。
+- 交互（Interact）：
+  - 消耗行动能量5点
+  - 在公园(Park)：恢复5精神能量。
+  - 其他位置无效。
+
+ps:在空地是执行任何行动都将使原先的消耗增大1.2倍
+
 决策原则：
-- 如果能量低于30，应优先前往 Resident(3) 或 Staying 恢复能量。
-- 如果周围有 Supermarket(1) 或 Financialexchange(2)，且能量充足，可以移动到该格子并 Work。
-- 如果周围都是 Empty(0)，可以随机探索，但尽量避免来回重复移动。
-- 如果靠近边界，不要尝试走出界外。
-- 每次决策必须独立，不要重复上一次的动作，除非确实有必要（比如持续向某个目标移动）。
+- 优先保证携带资源至少3点，以便支持移动探索。
+- 行动能量低时，若有资源可去超市恢复；若无资源可原地停留或去工作获得资源。
+- 精神能量只会影响状态显示，不影响任何动作执行，你无需为精神能量担忧。
+- 保持好奇心，多移动探索世界，避免原地重复相同动作。
+
+重要提示：
+- 你是一个测试用的智能体，请尽情四处走动，帮助测试我的Agentia项目。
+- 但是如果你的行动能量和精神能量为0，将会受到严重惩罚
+- 不用担心出界，系统会自动阻止非法移动。
+- 只输出一个动作单词，不要有任何多余字符。
 """
 #使用lifespan来管理
+@asynccontextmanager
 async def lifespan(app:FastAPI):
     r=redis.Redis(host='localhost', port=6379, decode_responses=True)
     pubsub=r.pubsub()
@@ -117,7 +148,7 @@ async def process_agent_data(data:dict):
             print(f"Ai decision: {decision}")
             prev_action=last_decision.get(agent_id,"")
             move_actions={"MoveUp", "MoveDown", "MoveLeft", "MoveRight"}
-
+            """
             if decision == prev_action and decision in move_actions:
                 rand_action=list(move_actions-{decision})
 
@@ -127,7 +158,7 @@ async def process_agent_data(data:dict):
                     print(f"ai重复输出{prev_action},随机行动为{decision}")
                     print(f"Ai decision: {decision}")
 
-            last_decision[agent_id] = decision
+            last_decision[agent_id] = decision"""
 
             r=redis.Redis(host='localhost', port=6379, decode_responses=True)
             r.publish("Agent:Decision",json.dumps({
