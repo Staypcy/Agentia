@@ -5,6 +5,10 @@
 #include<adapters/qt.h>   //connect this qt <core>
 #include<QThread>
 #include"redismessager.h"
+#include<QFuture>
+#include<QFutureWatcher>
+#include<QtConcurrent/QtConcurrent>
+#include<QtConcurrent/QtConcurrentRun>
 
 class redisWorker :public QObject{
 
@@ -26,7 +30,11 @@ public:
 
     void publish(const QString& channel,const QString& message);
     void subscribe(const QString& channel);
+
+    void publish_Async(const QString &channel, const QString &message);
+    void execommand_Async(const QString&cmd);
 signals:
     void newMessage(const QString& channel,const QString& message);
-
+    void pubfinished(const QString& channel);
+    void cmdresult(const QString& result);
 };

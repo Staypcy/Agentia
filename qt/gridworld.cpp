@@ -376,6 +376,6 @@ void GridWorld::send_AgentStatus_AndWorld_ToRedis(redisWorker *redis)
         QJsonDocument doc(alldate);
         QString json=doc.toJson(QJsonDocument::Compact);
 
-        redis->publish("Agent:State",json);
+        redis->publish_Async("Agent:State",json);
     }
 }

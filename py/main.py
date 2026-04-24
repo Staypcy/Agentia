@@ -1,13 +1,15 @@
 from fastapi import FastAPI
-import redis
 import json
 import asyncio
-import requests
+import aiohttp
+import re
+import redis.asyncio as redis_asyncio
 from contextlib import asynccontextmanager
+
 
 #后续使用aioredis来实现真正的异步决策
 #网络接口，千问模型api接口
-api_key="sk-5463835ade8d4045bb989ff2f5cf2097"
+api_key="sk-5b74d3a662ee4c568414ba8d2a4db6cd"
 url="https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
 headers={
     "Authorization":f"Bearer {api_key}",
@@ -64,44 +66,42 @@ ps:在空地是执行任何行动都将使原先的消耗增大1.2倍
 - 不用担心出界，系统会自动阻止非法移动。
 - 只输出一个动作单词，不要有任何多余字符。
 """
-#使用lifespan来管理
-@asynccontextmanager
-async def lifespan(app:FastAPI):
-    r=redis.Redis(host='localhost', port=6379, decode_responses=True)
-    pubsub=r.pubsub()
-    pubsub.subscribe('Agent:State')
-
-    #创建异步任务，来持续监听
-    async def listen_redis(asyncicio=None):
-        print("正在监听redis的Agent:State频道")
-        try:
-            for msg in pubsub.listen():#pubsub.listen是阻塞的,异步处理
-                if msg['type']=='message':
-                    data=json.loads(msg['data'])
-                    #处理函数
-
-                    await process_agent_data(data)
-        except asyncicio.CancelledError:
-            print("redis监听停止")
-        finally:
-            pubsub.close()
-
-    task=asyncio.create_task(listen_redis())
-
-    yield
-
-    task.cancel()
-    await task
-    r.close()
-
 last_decision={}
+async def call_llm_aysnc(session:aiohttp.ClientSession,user_content:str):
+    payload = {
+        "model": "qwen-turbo",  # 你之前用的模型
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content}
+        ],
+        "temperature": 1.5,
+        "max_tokens": 10,
+        "top_p": 0.95
+    }
+    try:
+        async with session.post(url,json=payload,headers=headers,timeout=15) as response:
+            if response.status==200:
+                result=await response.json()
+                decision=result["choices"][0]["message"]["content"].strip()
 
-app = FastAPI(lifespan=lifespan)
-world_dest_list=[]
-async def process_agent_data(data:dict):
+                match = re.search(r'(MoveUp|MoveDown|MoveLeft|MoveRight|Staying|Work|Interact)',decision,re.IGNORECASE)
+                if match:
+                    return match.group(1).strip()
+                else :
+                    return "Staying"
+            else:
+                print(f"LLM调用失败，{response.status}")
+                return "Staying"
+    except Exception as e:
+        print(f"LLM请求异常,{e}")
+        return "Staying"
+
+
+
+async def process_agent_data(redis_pub,session,data:dict):
     agent=data['AgentState'][0]
     agent_id = agent['id']
-    world=data["WorldDate"]
+    world=data['WorldDate']
 
     world_desc_list = []
     for cell in world:
@@ -121,57 +121,53 @@ async def process_agent_data(data:dict):
         f"请根据以上信息，从七个动作中选择一个并只输出该单词。"
     )
 
-    payload = {
-        "model": "qwen-vl-plus-latest",
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_content}
-        ],
-        "temperature": 0.9,
-        "max_tokens": 10,
-        "top_p": 0.95
-    }
+    decision=await call_llm_aysnc(session,user_content)
+    print(f"{agent_id},{decision}")
+    last_decision[agent_id] = decision
 
+    #异步处理
+    await redis_pub.publish("Agent:Decision", json.dumps({
+        "id":agent_id,
+        "decision":decision
+    }))
+
+
+async def listen_redis(app):
+    redis=await redis_asyncio.Redis(host='localhost', port=6379, decode_responses=True)
+    pubsub=redis.pubsub()
+    await pubsub.subscribe('Agent:State')
+
+    async with aiohttp.ClientSession() as session:
+        print("开始订阅redis频道 Agent:State")
+        try:
+            async for msg in pubsub.listen():
+                if msg["type"]=="message":
+                    data=json.loads(msg['data'])
+
+                    asyncio.create_task(process_agent_data(redis,session,data))
+
+        except Exception as e:
+            print("redis 订阅取消")
+        finally:
+            await pubsub.unsubscribe("Agent:State")
+            await redis.close()
+
+
+@asynccontextmanager
+async def lifespan(app:FastAPI):
+    task=asyncio.create_task(listen_redis(app))
+
+    yield
+
+    task.cancel()
     try:
-        response=requests.post(url,json=payload,headers=headers,timeout=10)
-        if response.status_code==200:
-            result=response.json()
-            decision=result["choices"][0]["message"]["content"].strip()
+        await task
+    except asyncio.CancelledError:
+        pass
 
-            import re
-            match=re.search(r'(MoveUp|MoveDown|MoveLeft|MoveRight|Staying|Work|Interact)',decision,re.IGNORECASE)
-            if match:
-                decision=match.group(1)
-            else:
-                decision="Staying"
 
-            print(f"Ai decision: {decision}")
-            prev_action=last_decision.get(agent_id,"")
-            move_actions={"MoveUp", "MoveDown", "MoveLeft", "MoveRight"}
-            """
-            if decision == prev_action and decision in move_actions:
-                rand_action=list(move_actions-{decision})
+app=FastAPI(lifespan=lifespan)
 
-                if rand_action:
-                    import random
-                    decision=random.choice(rand_action)
-                    print(f"ai重复输出{prev_action},随机行动为{decision}")
-                    print(f"Ai decision: {decision}")
-
-            last_decision[agent_id] = decision"""
-
-            r=redis.Redis(host='localhost', port=6379, decode_responses=True)
-            r.publish("Agent:Decision",json.dumps({
-                "id":agent['id'],
-                "decision":decision
-            }))
-        else:
-            print(f"与ai的连接失败")
-            print(f"{response.status_code},"
-                  f"reason:{response.reason},"
-                  f"content:{response.text}")
-    except Exception as e:
-        print(f"redis 连接失败:{e}")
 """
 这里可以确认cpp返回的是Json类型的数据，结构：
 由agent本身的状态+agent周边世界的信息+全局信息（全局政策等）
@@ -223,7 +219,7 @@ async def process_agent_data(data:dict):
 """
 @app.get("/")
 async def root():
-    return {"message": "Hello World"}
+    return {"message": "Agentia Async Decision Service"}
 
 
 @app.get("/hello/{name}")

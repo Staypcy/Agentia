@@ -1,5 +1,6 @@
 #include<redisworker.h>
 #include<qDebug>
+#include<QPointer>
 
 redisWorker::redisWorker(QObject *parent)
     :QObject(parent),c(nullptr),messager(nullptr),subThread(nullptr)
@@ -135,3 +136,57 @@ bool redisWorker::connectToredis(const QString &host, const int &port)
     return true;
 }
 
+void redisWorker::publish_Async(const QString& channel,const QString &message)
+{
+    QFuture<void> future=QtConcurrent::run([=](){
+        if(!c)return;
+        redisReply*reply=(redisReply*)redisCommand(c,"PUBLISH %s %s",channel.toStdString().c_str(),message.toStdString().c_str());
+        if(reply){
+            freeReplyObject(reply);
+        }
+    });
+}
+
+void redisWorker::execommand_Async(const QString&cmd)
+{
+    QFuture<QString> future=QtConcurrent::run([=]()->QString{
+        if(!c)return "redis未连接";
+        redisReply* reply=(redisReply*)redisCommand(c,cmd.toStdString().c_str());
+
+        if(reply){
+            QString result;
+
+            switch (reply->type) {
+            case REDIS_REPLY_STRING:
+                result=QString::fromStdString(std::string(reply->str,reply->len));
+                break;
+            case REDIS_REPLY_INTEGER:
+                result=QString::number(reply->integer);
+                break;
+            case REDIS_REPLY_STATUS:
+                result=QString::fromStdString(std::string(reply->str,reply->len));
+                break;
+            case REDIS_REPLY_NIL:
+                break;
+            case REDIS_REPLY_ERROR:
+                result=QString("Errot:")+QString::fromStdString(std::string(reply->str,reply->len));
+                break;
+            default:
+                result ="type is wrong";
+                break;
+            }
+            freeReplyObject(reply);
+            return result;
+        }
+        return "空指针reply";
+    });
+
+    QFutureWatcher<QString>*watcher=new QFutureWatcher<QString>(this);
+
+    connect(watcher,&QFutureWatcher<QString>::finished,this,[this,watcher](){
+        QString result=watcher->result();
+        emit cmdresult(result);
+        watcher->deleteLater();
+    });
+    watcher->setFuture(future);
+}
