@@ -14,7 +14,7 @@ redisWorker::~redisWorker()
     }
     if(subThread){
         subThread->quit();
-        subThread->wait();
+        subThread->wait(3000);
         delete subThread;
         subThread=nullptr;
     }
@@ -138,9 +138,13 @@ bool redisWorker::connectToredis(const QString &host, const int &port)
 
 void redisWorker::publish_Async(const QString& channel,const QString &message)
 {
-    QFuture<void> future=QtConcurrent::run([=](){
-        if(!c)return;
-        redisReply*reply=(redisReply*)redisCommand(c,"PUBLISH %s %s",channel.toStdString().c_str(),message.toStdString().c_str());
+    QPointer<redisWorker> temp(this);
+    QFuture<void> future=QtConcurrent::run([temp,channel,message](){
+        if(temp==nullptr)return;
+
+        if(temp->c==nullptr)return;
+
+        redisReply*reply=(redisReply*)redisCommand(temp->c,"PUBLISH %s %s",channel.toStdString().c_str(),message.toStdString().c_str());
         if(reply){
             freeReplyObject(reply);
         }
@@ -149,9 +153,11 @@ void redisWorker::publish_Async(const QString& channel,const QString &message)
 
 void redisWorker::execommand_Async(const QString&cmd)
 {
-    QFuture<QString> future=QtConcurrent::run([=]()->QString{
-        if(!c)return "redis未连接";
-        redisReply* reply=(redisReply*)redisCommand(c,cmd.toStdString().c_str());
+    QPointer<redisWorker> temp(this);
+
+    QFuture<QString> future=QtConcurrent::run([temp,cmd]()->QString{
+        if(!temp->c)return "redis未连接";
+        redisReply* reply=(redisReply*)redisCommand(temp->c,cmd.toStdString().c_str());
 
         if(reply){
             QString result;

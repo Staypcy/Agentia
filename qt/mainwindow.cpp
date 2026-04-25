@@ -82,7 +82,7 @@ MainWindow::MainWindow(QWidget *parent)
         reco++;
         displayAllData(reco);
     });
-    timer->start(500);
+    timer->start(3000);
 }
 
 MainWindow::~MainWindow()

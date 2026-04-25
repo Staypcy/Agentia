@@ -134,7 +134,7 @@ void GridWorld::generateWorldmap(int Xsize, int Ysize)
         for(int j=0;j<Ysize;j++){
             if((i==x_g) && (j==y_g)){
                 gridset[i][j].build=Government;
-                gridset[i][j].resource=QRandomGenerator::global()->bounded(30)+10;
+                gridset[i][j].resource=0;
             }else{
                 int r=QRandomGenerator::global()->bounded(5);
 
@@ -142,6 +142,8 @@ void GridWorld::generateWorldmap(int Xsize, int Ysize)
                 if(b==Government)b=Empty;
 
                 gridset[i][j].build=b;
+                if(b!=Building::Empty||b!=Building::Park||b!=Building::Resident)
+                    gridset[i][j].resource=0;
                 gridset[i][j].resource=QRandomGenerator::global()->bounded(10);
             }
         }
@@ -334,13 +336,14 @@ void GridWorld::send_AgentStatus_AndWorld_ToRedis(redisWorker *redis)
         qDebug()<<"未连接";
         return;
     }
-
+    int width=gridset.size();
+    int height=gridset[0].size();
 
     //agent本身的信息
+    QJsonArray AgentState;
     for(auto agent:agents){
         QJsonObject alldate;
 
-        QJsonArray AgentState;
         QJsonObject agentstate;
         agentstate["id"]=QString::fromStdString(agent->id);
         agentstate["type"]=agent->type;
@@ -349,7 +352,7 @@ void GridWorld::send_AgentStatus_AndWorld_ToRedis(redisWorker *redis)
         agentstate["energy"]=agent->status.action_energy.energyValue;
         agentstate["spirit"]=agent->status.spirit_energy.energyValue;
         agentstate["resource"]=agent->agent_resource;
-        AgentState.append(agentstate);
+
 
         //gridworld局部信息
         QJsonArray worlddate;
@@ -370,12 +373,13 @@ void GridWorld::send_AgentStatus_AndWorld_ToRedis(redisWorker *redis)
             }
         }
 
-        alldate["AgentState"]=AgentState;
+        alldate["AgentState"]=agentstate;
         alldate["WorldDate"]=worlddate;
 
-        QJsonDocument doc(alldate);
-        QString json=doc.toJson(QJsonDocument::Compact);
-
-        redis->publish_Async("Agent:State",json);
+        AgentState.append(alldate);
     }
+    QJsonDocument doc(AgentState);
+    QString json=doc.toJson(QJsonDocument::Compact);
+
+    m_worker->publish_Async("Agent:State",json);
 }
