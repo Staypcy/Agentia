@@ -5,16 +5,118 @@ import aiohttp
 import re
 import redis.asyncio as redis_asyncio
 from contextlib import asynccontextmanager
-
+from chromadb import PersistentClient
+from chromadb.utils import embedding_functions
+import time
+import pymysql
 
 #后续使用aioredis来实现真正的异步决策
 #网络接口，千问模型api接口
-api_key="sk-5b74d3a662ee4c568414ba8d2a4db6cd"
+api_key="sk-448b98deb8994d0b9e0ffef51fb7812a"
 url="https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
 headers={
     "Authorization":f"Bearer {api_key}",
     "Content-Type": "application/json"
 }
+MYSQL_CONFIG={
+    'host':'localhost',
+    'user':'root',
+    'password':'@StayInto2000',
+    'database':'agentia_db',
+    'charset':'utf8mb4'
+}
+CHROMA_PATH="./chroma_db"
+COLLECTION_NAME="decision_logs_agentia"
+
+#初始化mysql函数
+def init_mysql():
+    conn=pymysql.connect(**MYSQL_CONFIG)
+    cursor=conn.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS decision_logs_agentia_history(
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        timestamp DOUBLE NOT NULL,
+        agent_id VARCHAR(50) NOT NULL,
+        agent_state JSON NOT NULL,
+        agent_env JSON NOT NULL,
+        action VARCHAR(50) NOT NULL,
+        INDEX idx_agent_id (agent_id)
+    )
+    """)
+    conn.commit()
+
+    conn.close()
+    print("MySQL 启动成功")
+
+#sql储存
+class MySQLMemory:
+    def __init__(self):
+        self.conn=pymysql.connect(**MYSQL_CONFIG)
+
+    def log_decision_toMySQL(self,agent_id,agent_state,agent_env,action):
+        sql="""INSERT INTO decision_logs_agentia_history (timestamp,agent_id,agent_state,agent_env,action) VALUES (%s,%s,%s,%s,%s)"""
+
+        with self.conn.cursor() as cursor:
+            cursor.execute(sql,(time.time(),agent_id,agent_state,agent_env,action))
+            self.conn.commit()
+
+    def display_all(self):
+        with self.conn.cursor() as cursor:
+            cursor.execute("SELECT * FROM decision_logs_agentia_history ORDER BY timestamp DESC,agent_id")
+
+            rows=cursor.fetchall()
+        print("MySQL中的数据表")
+
+        if not rows:
+            print("空")
+        else:
+            for row in rows:
+                print(f"ID:{row[0]},时间:{row[1]},agent_id:{row[2]},agent_state:{row[3]},agent_env:{row[4]},action:{row[5]}")
+    def close(self):
+        self.conn.close()
+
+class ChromadbMemory:
+    def __init__(self):
+        #创建chromadb客户端储存语义向量
+        self.client=PersistentClient(path=CHROMA_PATH)
+
+        #使用sentence-transformers语义模型
+        self.embed_fn=embedding_functions.SentenceTransformerEmbeddingFunction(
+            model_name="all-MiniLM-L6-v2"
+        )
+
+        self.collection=self.client.get_or_create_collection(
+            name=COLLECTION_NAME,
+            embedding_function=self.embed_fn,
+            metadata={"description":"Agent决策状态--决策"}
+        )
+
+    def store_data(self,state,action):
+        state_text=json.dumps(state,ensure_ascii=False)
+
+        doc_text=f"State:{state_text}->Action:{action}"
+        metadata={
+            "state":state_text,
+            "action":action
+        }
+
+        #hash生成数据id
+        id=f"{time.time()},{hash(state_text)},{hash(action)}"
+        self.collection.add(
+            documents=[doc_text],
+            metadatas=[metadata],
+            ids=[id]
+        )
+
+    def fetch_same_history(self,state,top_k=3):
+        #查找相似的历史决策
+        query_text=json.dumps(state,ensure_ascii=False)
+        result=self.collection.query(
+            query_texts=[query_text],
+            n_results=top_k,
+            include=["documents","metadatas"]
+        )
+        return result
 
 system_prompt = """你是一个生活在网格世界中的智能体。你需要根据当前位置、行动能量、精神能量、携带资源以及周围5x5范围内的建筑信息，做出最合理的动作。
 
@@ -73,7 +175,7 @@ last_decision={}
 async def call_llm_aysnc(session:aiohttp.ClientSession,user_content:str):
     async with sem:
         payload = {
-            "model": "qwen-vl-plus",
+            "model": "qwen3.6-plus",
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content}
@@ -101,7 +203,7 @@ async def call_llm_aysnc(session:aiohttp.ClientSession,user_content:str):
                     print(f"LLM调用失败，{response.status}")
                     return "Staying"
         except Exception as e:
-            print(f"LLM请求异常,{e}")
+            print(f"LLM请求异常, 类型: {type(e).__name__}, 详情: {e}")
             return "Staying"
 
 
@@ -109,6 +211,8 @@ async def call_llm_aysnc(session:aiohttp.ClientSession,user_content:str):
 async def process_agent_data(redis_pub,session,data:dict):
 
     try:
+        sql=MySQLMemory()
+
         agent=data['AgentState']
         world=data['WorldDate']
     except Exception as e:
@@ -135,15 +239,30 @@ async def process_agent_data(redis_pub,session,data:dict):
         f"请根据以上信息，从七个动作中选择一个并只输出该单词。"
     )
 
-    decision=await call_llm_aysnc(session,user_content)
+    decision = await call_llm_aysnc(session, user_content)
     print(f"{agent_id},{decision}")
     last_decision[agent_id] = decision
-
-    #异步处理
-    await redis_pub.publish("Agent:Decision", json.dumps({
-        "id":agent_id,
-        "decision":decision
-    }))
+    try:
+        state_json = json.dumps({
+            "x": agent["x"],
+            "y": agent["y"],
+            "type": agent["type"],
+            "energy": agent["energy"],
+            "spirit": agent.get("spirit"),
+            "resource": agent.get("resource")
+        }, ensure_ascii=False)
+        env_json = json.dumps(world, ensure_ascii=False)
+        sql.log_decision_toMySQL(agent_id, state_json, env_json, decision)
+    except Exception as e:
+        print(f"sql出现错误,{e}")
+        # 异步处理
+    try:
+        await redis_pub.publish("Agent:Decision", json.dumps({
+            "id": agent_id,
+            "decision": decision
+        }))
+    except Exception as e:
+        print(f"redis出现错误,{e}")
 
 
 async def listen_redis(app):
@@ -189,6 +308,7 @@ async def listen_redis(app):
 
 @asynccontextmanager
 async def lifespan(app:FastAPI):
+    init_mysql()
     task=asyncio.create_task(listen_redis(app))
 
     yield
