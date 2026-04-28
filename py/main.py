@@ -11,11 +11,15 @@ import time
 import pymysql
 
 #后续使用aioredis来实现真正的异步决策
-#网络接口，千问模型api接口
+#网络接口，千问模型api接口          #变更成本地部署的模型
 api_key="sk-448b98deb8994d0b9e0ffef51fb7812a"
 url="https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+url_local="http://localhost:11434/v1/chat/completions"
 headers={
     "Authorization":f"Bearer {api_key}",
+    "Content-Type": "application/json"
+}
+headers_local={
     "Content-Type": "application/json"
 }
 MYSQL_CONFIG={
@@ -91,13 +95,14 @@ class ChromadbMemory:
             metadata={"description":"Agent决策状态--决策"}
         )
 
-    def store_data(self,state,action):
+    def store_data(self,state,action,agent_id):
         state_text=json.dumps(state,ensure_ascii=False)
 
         doc_text=f"State:{state_text}->Action:{action}"
         metadata={
             "state":state_text,
-            "action":action
+            "action":action,
+            "agent_id":agent_id
         }
 
         #hash生成数据id
@@ -108,15 +113,16 @@ class ChromadbMemory:
             ids=[id]
         )
 
-    def fetch_same_history(self,state,top_k=3):
+    def fetch_same_history(self,agent_id,state,top_k=3):
         #查找相似的历史决策
         query_text=json.dumps(state,ensure_ascii=False)
         result=self.collection.query(
             query_texts=[query_text],
             n_results=top_k,
+            where={"agent_id":agent_id},
             include=["documents","metadatas"]
         )
-        return result
+        return result if result else None
 
 system_prompt = """你是一个生活在网格世界中的智能体。你需要根据当前位置、行动能量、精神能量、携带资源以及周围5x5范围内的建筑信息，做出最合理的动作。
 
@@ -175,7 +181,7 @@ last_decision={}
 async def call_llm_aysnc(session:aiohttp.ClientSession,user_content:str):
     async with sem:
         payload = {
-            "model": "qwen3.6-plus",
+            "model": "qwen-plus-2025-07-28",
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content}
@@ -189,7 +195,7 @@ async def call_llm_aysnc(session:aiohttp.ClientSession,user_content:str):
                 if response.status == 200:
                     result = await response.json()
                     raw_output = result["choices"][0]["message"]["content"]
-                    print(f"原始输出: {raw_output}")  # ← 加这一行
+                    print(f"原始输出: {raw_output}")
 
                     decision = result["choices"][0]["message"]["content"].strip()
 
@@ -208,10 +214,11 @@ async def call_llm_aysnc(session:aiohttp.ClientSession,user_content:str):
 
 
 
-async def process_agent_data(redis_pub,session,data:dict):
+async def process_agent_data(app,redis_pub,session,data:dict):
 
     try:
         sql=MySQLMemory()
+        chroma=app.state.chroma
 
         agent=data['AgentState']
         world=data['WorldDate']
@@ -232,17 +239,39 @@ async def process_agent_data(redis_pub,session,data:dict):
     world_desc = "；".join(world_desc_list)
 
     agent_type_names = ['管理者', '居民', '工人']
+
+    #利用向量数据库检索相似的历史决策
+    state_env_json = json.dumps({
+            "x": agent["x"],
+            "y": agent["y"],
+            "type": agent["type"],
+            "energy": agent["energy"],
+            "spirit": agent.get("spirit"),
+            "resource": agent.get("resource"),
+            "environment": world_desc
+        }, ensure_ascii=False)
+    history=chroma.fetch_same_history(agent["id"],state_env_json,3)
+    history_prompt =""
+    if history["ids"] and history["ids"][0]:
+        history_prompt="\n/RAG/你在过去相似状态的决策:\n"
+        for i,doc in enumerate(history["documents"][0]):
+            history_prompt+=f"{i+1}.{doc}\n"
+            print(f"{doc}")
+
     user_content = (
         f"当前状态：身份为{agent_type_names[agent['type']]}，"
         f"坐标({agent['x']},{agent['y']})，能量{agent['energy']}。\n"
         f"周边5x5范围内的情况：{world_desc}\n"
+        f"{history_prompt}"
         f"请根据以上信息，从七个动作中选择一个并只输出该单词。"
     )
 
     decision = await call_llm_aysnc(session, user_content)
     print(f"{agent_id},{decision}")
     last_decision[agent_id] = decision
+
     try:
+        #sql信息保存
         state_json = json.dumps({
             "x": agent["x"],
             "y": agent["y"],
@@ -253,6 +282,9 @@ async def process_agent_data(redis_pub,session,data:dict):
         }, ensure_ascii=False)
         env_json = json.dumps(world, ensure_ascii=False)
         sql.log_decision_toMySQL(agent_id, state_json, env_json, decision)
+        #chromadb向量数据库保存
+        chroma.store_data(state_env_json,decision,agent_id)
+
     except Exception as e:
         print(f"sql出现错误,{e}")
         # 异步处理
@@ -291,7 +323,7 @@ async def listen_redis(app):
                     continue
 
                 for one_agent in agents_list:
-                    asyncio.create_task(process_agent_data(redis,session,one_agent))
+                    asyncio.create_task(process_agent_data(app,redis,session,one_agent))
 
 
         except asyncio.CancelledError:
@@ -308,7 +340,12 @@ async def listen_redis(app):
 
 @asynccontextmanager
 async def lifespan(app:FastAPI):
-    init_mysql()
+    #初始化所有状态
+    try:
+        init_mysql()
+        app.state.chroma=ChromadbMemory()
+    except Exception as e:
+        print(e)
     task=asyncio.create_task(listen_redis(app))
 
     yield
