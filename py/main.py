@@ -47,6 +47,16 @@ def init_mysql():
         INDEX idx_agent_id (agent_id)
     )
     """)
+    #为时间字段添加单独的索引,按时间降序排序
+    cursor.execute("""
+                   SELECT COUNT(*)
+                   FROM information_schema.statistics
+                   WHERE table_schema = 'agentia_db'
+                     AND table_name = 'decision_logs_agentia_history'
+                     AND index_name = 'idx_timestamp'
+                   """)
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("CREATE INDEX idx_timestamp ON decision_logs_agentia_history (timestamp DESC)")
     conn.commit()
 
     conn.close()
@@ -96,21 +106,44 @@ class ChromadbMemory:
         )
 
     def store_data(self,state,action,agent_id):
-        state_text=json.dumps(state,ensure_ascii=False)
+        now_agent_ids=self.collection.get(
+            where={"agent_id":agent_id},
+            include=[]
+        )
+        agent_ids=now_agent_ids['ids']
+        agent_num_text=len(agent_ids)
+        #删除最久远的记录
+        if not agent_num_text <= 1000:
+            all_data=self.collection.get(include=[])
+            all_ids=all_data["ids"]
 
-        doc_text=f"State:{state_text}->Action:{action}"
-        metadata={
-            "state":state_text,
-            "action":action,
-            "agent_id":agent_id
+            time_id=[]
+            for id_find in all_ids:
+                try:
+                    t=float(id_find.split(",")[0])
+                    time_id.append((t,id_find))
+                except:
+                    pass
+            time_id.sort(key=lambda x:x[0])
+            delete_text=[id_str for (_,id_str) in time_id[:(agent_num_text-999)]]
+            self.collection.delete(ids=delete_text)
+
+
+        state_text = json.dumps(state, ensure_ascii=False)
+
+        doc_text = f"State:{state_text}->Action:{action}"
+        metadata = {
+            "state": state_text,
+            "action": action,
+            "agent_id": agent_id
         }
 
-        #hash生成数据id
-        id=f"{time.time()},{hash(state_text)},{hash(action)}"
+        # hash生成数据id
+        doc_id = f"{time.time()},{hash(state_text)},{hash(action)}"
         self.collection.add(
             documents=[doc_text],
             metadatas=[metadata],
-            ids=[id]
+            ids=[doc_id]
         )
 
     def fetch_same_history(self,agent_id,state,top_k=3):
@@ -180,6 +213,7 @@ sem=asyncio.Semaphore(6)
 last_decision={}
 async def call_llm_aysnc(session:aiohttp.ClientSession,user_content:str):
     async with sem:
+        await asyncio.sleep(1.5)
         payload = {
             "model": "qwen-plus-2025-07-28",
             "messages": [
@@ -346,8 +380,8 @@ async def lifespan(app:FastAPI):
         app.state.chroma=ChromadbMemory()
     except Exception as e:
         print(e)
-    task=asyncio.create_task(listen_redis(app))
 
+    task = asyncio.create_task(listen_redis(app))
     yield
 
     task.cancel()
