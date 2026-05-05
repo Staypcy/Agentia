@@ -1,5 +1,7 @@
 # 🧠 Agentia — 多智能体网格世界仿真平台
 
+**一个基于 C++/Qt + Redis + FastAPI 的三层分布式多智能体城市模拟系统**
+
 <div align="center">
 
 ![C++](https://img.shields.io/badge/C++-17-blue?logo=c%2B%2B)
