@@ -37,6 +37,10 @@
 
 智能体的核心思想是：**不依靠硬编码 if/else 规则，而是让 LLM 充当“大脑”**，根据当前状态和长期记忆做出合理的动作决策。
 
+### ✨新增ReAct
+python接受agent的状态，发送agent的决策（可能是函数调用请求），由cpp接受，cpp调用函数，cpp再将agent的状态更新，在传递给python端，循环
+  
+
 ### ✨动作空间
 每个智能体可以在 7 个动作中选择一个（仅输出一个单词）：
 - `MoveUp` / `MoveDown` / `MoveLeft` / `MoveRight`：向四个方向移动
