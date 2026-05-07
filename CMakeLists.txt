@@ -11,12 +11,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CPP_SOURCES
     cpp/Agent.cpp
+    cpp/FunctionTab.cpp
     cpp/NetWorkManager.cpp
     cpp/redisworker.cpp
     cpp/redismessager.cpp
 )
 set(CPP_HEADERS
     cpp/Agent.h
+    cpp/FunctionTab.h
     cpp/NetWorkManager.h
     cpp/redisworker.h
     cpp/redismessager.h

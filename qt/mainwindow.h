@@ -42,6 +42,7 @@ private:
 public slots:
     //在这里处理agent返回的数据，并将数据储存在redis里
     void sendAgentDecideToredis(const QString &agent_decide_from_network);
+    void suscribe_toolcall(const QString& channel);
 public:
     NetWorkManager* Netmanager;
 

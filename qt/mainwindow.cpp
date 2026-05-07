@@ -30,6 +30,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     gridworld=ui->gridworld;
     gridworld->setRedisWorker(redismanager);
+    gridworld->setToolChannel();
 
     BaseDataDisplay->Display->setReadOnly(true);
     SumDataDisplay->Display->setReadOnly(true);
@@ -82,7 +83,7 @@ MainWindow::MainWindow(QWidget *parent)
         reco++;
         displayAllData(reco);
     });
-    timer->start(3000);
+    timer->start(4000);//现阶段条件有限，只好加大延迟
 }
 
 MainWindow::~MainWindow()
@@ -237,6 +238,33 @@ void MainWindow::sendAgentDecideToredis(const QString& agent_decide_from_network
         agent_redis_pub+=QString::fromStdString(Action_to_QString(temp->decide(agent_decide_from_network)));
         redismanager->publish("Agent:Decision",agent_redis_pub);
     }*/
+}
+
+void MainWindow::suscribe_toolcall(const QString &channel)
+{
+    redisWorker* tool_redismanager=new redisWorker();
+
+    int port =6379;
+    if(!tool_redismanager->connectToredis("127.0.0.1",port)){
+        qDebug()<<"未连接到redis";
+        return;
+    }
+
+    tool_redismanager->subscribe(channel);
+    connect(tool_redismanager->messager,&redisMessager::messageReceived,tool_redismanager,&redisWorker::newMessage);
+
+    connect(tool_redismanager,&redisWorker::newMessage,tool_redismanager,[=](const QString& curr_channel,const QString& curr_message){
+        if(curr_channel!="Agent:ToolCal"){
+            qDebug()<<"ToolCal频道订阅失败";
+        }
+
+        QJsonDocument doc=QJsonDocument::fromJson(curr_message.toUtf8());
+        if(!doc.isObject()){
+            qDebug()<<"函数调用符失败";
+            return ;
+        }
+
+    });
 }
 
 void MainWindow::updatetheActions()

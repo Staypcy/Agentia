@@ -14,6 +14,171 @@ GridWorld::GridWorld(QWidget *parent)
     setMinimumSize(600,600);
     setMaximumSize(600,600);
     generateWorldmap(width() / gridsize, height() / gridsize);
+
+    functab=new FunctionTab();
+
+    functab->creatFunction(
+        FunctionStruct{"perceive_env", "获取指定坐标周围3x3的环境信息", R"({"type":"object","properties":{"x":{"type":"integer"},"y":{"type":"integer"}},"required":["x","y"]})"},
+                [this](const QJsonObject& params) -> FunctionResult {
+                int x = params["x"].toInt();
+                int y = params["y"].toInt();
+
+                // 返回3x3范围的grid信息
+                QJsonArray env;
+                for (int i = -1; i <= 1; i++) {
+                    for (int j = -1; j <= 1; j++) {
+                        if (!isOutWorld(x+i, y+j)) {
+                            QJsonObject cell;
+                            cell["x"] = x+i;
+                            cell["y"] = y+j;
+                            cell["building"] = gridset[x+i][y+j].build;
+                            cell["resource"] = gridset[x+i][y+j].resource;
+                            env.append(cell);
+                        }
+                    }
+                }
+                QJsonDocument doc(env);
+                return {true, doc.toJson().toStdString()};
+            }
+        );
+
+    functab->creatFunction(
+        FunctionStruct{"take_action", "执行指定的行动/操作", R"({"type":"object","properties":{"direction":{"type":"string","enum":["Staying","MoveUp","MoveDown","MoveRight","MoveLeft","Work","Interact"]}},"required":["direction"]})"},
+            [this](const QJsonObject& params) -> FunctionResult {
+             for (size_t i = 0; i < agents.size(); i++) {
+                 Agent* temp = agents[i];
+                 Action action_temp = actions[QString::fromStdString(temp->id)];
+
+                 qDebug() << "Agent" << QString::fromStdString(temp->id) << "executes action:" << action_temp;
+
+                 Position temp_pos = temp->pos;
+                 int temp_resource=temp->agent_resource;
+                 //qDebug()<<QString::fromStdString(temp->id)<<":"<<pos.x<<","<<pos.y;
+                 switch (action_temp)
+                 {
+                 case MoveUp:
+                     temp_pos.y--;
+                     temp_resource-=3;
+                     if(temp_resource<0){
+                         break;
+                     }
+                     temp->agent_resource-=3;
+                     if (!isOutWorld(temp_pos.x, temp_pos.y)) {
+                         temp->move(action_temp);
+                     }
+                     break;
+                 case MoveDown:
+                     temp_pos.y++;
+                     temp_resource-=3;
+                     if(temp_resource<0){
+                         break;
+                     }
+                     temp->agent_resource-=3;
+                     if (!isOutWorld(temp_pos.x, temp_pos.y)) {
+                         temp->move(action_temp);
+                     }
+                     break;
+                 case MoveRight:
+                     temp_pos.x++;
+                     temp_resource-=3;
+                     if(temp_resource<0){
+                         break;
+                     }
+                     temp->agent_resource-=3;
+                     if (!isOutWorld(temp_pos.x, temp_pos.y)) {
+                         temp->move(action_temp);
+                     }
+                     break;
+                 case MoveLeft:
+                     temp_pos.x--;
+                     temp_resource-=3;
+                     if(temp_resource<0){
+                         break;
+                     }
+                     temp->agent_resource-=3;
+                     if (!isOutWorld(temp_pos.x, temp_pos.y)) {
+                         temp->move(action_temp);
+                     }
+                     break;
+                 case Staying:
+                     if(gridset[temp_pos.x][temp_pos.y].build==Building::Resident){
+                         if (temp->status.spirit_energy.energyValue <= 80)
+                             temp->status.spirit_energy.energyValue += 20;
+
+                         else temp->status.spirit_energy.energyValue = 100;
+
+                         break;
+                     }
+                     else if(temp_resource>=5&&gridset[temp_pos.x][temp_pos.y].build==Building::Supermakert){
+                         temp->agent_resource-=5;
+                         if(temp->status.action_energy.energyValue<=85)
+                             temp->status.action_energy.energyValue+=15;
+
+                         else temp->status.action_energy.energyValue=100;
+
+                         break;
+                     }
+                     else if(gridset[temp_pos.x][temp_pos.y].build==Building::Park){
+                         if(temp->status.spirit_energy.energyValue<=90)
+                             temp->status.spirit_energy.energyValue+=10;
+                         else temp->status.spirit_energy.energyValue+=10;
+                     }
+                     else{
+                         qDebug()<<temp->id<<"已无资源";
+                     }
+
+                     break;
+                 case Work:
+                     if(temp->status.spirit_energy.energyValue>=10){
+                         if(temp->type==AgentType::Worker&&gridset[temp_pos.x][temp_pos.y].build==Building::Financialexchange)
+                         {
+                             if(gridset[temp_pos.x][temp_pos.y].resource>=5){
+                                 if (temp->status.action_energy.energyValue <= 5)
+                                     temp->status.action_energy.energyValue = 0;
+                                 else temp->status.action_energy.energyValue -= 5;
+
+                                 temp->agent_resource+=15;
+                             }
+                         }
+                         else if(temp->type==AgentType::Residenter&&gridset[temp_pos.x][temp_pos.y].build==Building::Supermakert){
+                             if(gridset[temp_pos.x][temp_pos.y].resource>=5){
+                                 if (temp->status.action_energy.energyValue <= 5)
+                                     temp->status.action_energy.energyValue = 0;
+                                 else temp->status.action_energy.energyValue -= 5;
+
+                                 temp->agent_resource+=15;
+                             }
+                         }
+                         else qDebug()<<"网格世界 ("<<temp_pos.x<<","<<temp_pos.y<<") 资源枯竭";
+                     }else{
+                         qDebug()<<temp->id<<"已无心理能量，无法工作";
+                     }
+                     gridset[temp_pos.x][temp_pos.y].resource-=5;
+                     temp->status.spirit_energy.energyValue-=10;
+                     if (temp->status.action_energy.energyValue <= 30)temp->status.eat_Status = EatStatus::Hungry;
+
+                     break;
+                 case Interact:
+                     if(temp->status.action_energy.energyValue>=5){
+                         if(gridset[temp_pos.x][temp_pos.y].build==Building::Park){
+                             if(temp->status.spirit_energy.energyValue<=95)
+                                 temp->status.spirit_energy.energyValue+=5;
+                             else temp->status.spirit_energy.energyValue+=5;
+                         }
+                         temp->status.action_energy.energyValue-=5;
+                     }
+                     break;
+                 default:
+                     qDebug()<<"default";
+                     break;
+                 }
+                 //actions[QString::fromStdString(temp->id)]=Staying;
+                 //temp->getPos();
+                 //emit updated_world(temp);这样会信号爆炸
+             }
+
+             return {false,""};
+         });
 }
 
 GridWorld::GridWorld(int Gwidth, int Gheight, QWidget *parent)
@@ -353,7 +518,7 @@ void GridWorld::send_AgentStatus_AndWorld_ToRedis(redisWorker *redis)
         agentstate["spirit"]=agent->status.spirit_energy.energyValue;
         agentstate["resource"]=agent->agent_resource;
 
-
+        /*
         //gridworld局部信息
         QJsonArray worlddate;
         for(int i=-2;i<=2;i++){
@@ -372,14 +537,94 @@ void GridWorld::send_AgentStatus_AndWorld_ToRedis(redisWorker *redis)
                 worlddate.append(gridworld_cell);
             }
         }
-
+        */
         alldate["AgentState"]=agentstate;
-        alldate["WorldDate"]=worlddate;
+        //alldate["WorldDate"]=worlddate;
+
+        QJsonArray functions;
+        QJsonObject func1;
+        func1["name"]="perceive_env";
+        func1["description"]="获取指定坐标周围3x3的环境信息";
+        func1["parameters"] = QJsonDocument::fromJson(
+                                  R"({"type":"object","properties":{"x":{"type":"integer"},"y":{"type":"integer"}},"required":["x","y"]})"
+                                  ).object();
+
+        QJsonObject func2;
+        func2["name"]="take_action";
+        func2["description"]="执行指定的行动/操作";
+        func2["parameters"]=QJsonDocument::fromJson(R"({"type":"object","properties":{"direction":{"type":"string","enum":["Staying","MoveUp","MoveDown","MoveRight","MoveLeft","Work","Interact"]}},"required":["direction"]})").object();
+
+        functions.append(func1);
+        functions.append(func2);
 
         AgentState.append(alldate);
+        AgentState.append(functions);
     }
     QJsonDocument doc(AgentState);
     QString json=doc.toJson(QJsonDocument::Compact);
 
     m_worker->publish_Async("Agent:State",json);
 }
+
+void GridWorld::receive_AgentToolCall(redisWorker *redis)
+{
+    if(!redis){
+        qDebug()<<"未连接";
+        return;
+    }
+
+}
+
+void GridWorld::setToolChannel()
+{
+    if(m_toolworker)return;
+    m_toolworker=new redisWorker(this);
+    if(!m_toolworker->connectToredis("127.0.0.1",6379)){
+        qDebug()<<"ToolCal频道连接失败";
+        return ;
+    }
+    m_toolworker->subscribe("Agent:ToolCall");
+    connect(m_toolworker,&redisWorker::newMessage,this,[=](const QString&channel,const QString& message){
+        if(channel!="Agent:ToolCall"){
+            qDebug()<<"Agent：ToolCall频道订阅失败";
+            return;
+        }
+        QJsonDocument doc=QJsonDocument::fromJson(message.toUtf8());
+        if(!doc.isObject()){
+            qDebug()<<"函数调用符错误";
+            return ;
+        }
+        QJsonObject obj=doc.object();
+        QString call_id=obj["call_id"].toString();
+        QString func_name=obj["function_name"].toString();
+        QJsonObject params=obj["arguments"].toObject();
+
+        qDebug()<<"id:"<<call_id<<"调用:"<<func_name<<"("<<params<<")";
+
+        FunctionResult result=functab->execute(func_name.toStdString(),params);
+
+        QJsonObject response;
+        response["call_id"]=call_id;
+        if(result.success){
+            response["success"]=true;
+            QJsonDocument result_doc=QJsonDocument::fromJson(QByteArray::fromStdString(result.data));
+
+            if(result_doc.isArray()){
+                response["data"]=result_doc.array();
+            }else if(result_doc.isObject()){
+                response["data"]=result_doc.object();
+            }
+            else{
+                response["data"]=QString::fromStdString(result.data);
+            }
+        }
+        else{
+            response["success"]=false;
+            response["error"]=QString::fromStdString(result.data);
+
+        }
+
+        m_toolworker->publish_Async("Agent:ToolResult",QJsonDocument(response).toJson(QJsonDocument::Compact));
+    });
+}
+

@@ -9,6 +9,8 @@ from chromadb import PersistentClient
 from chromadb.utils import embedding_functions
 import time
 import pymysql
+import uuid
+from scipy._lib.pyprima.common import message
 
 #后续使用aioredis来实现真正的异步决策
 #网络接口，千问模型api接口          #变更成本地部署的模型
@@ -211,6 +213,47 @@ ps:在空地是执行任何行动都将使原先的消耗增大1.2倍
 """
 sem=asyncio.Semaphore(6)
 last_decision={}
+async def call_llm_function(session,agent_state,func_json):
+    """
+    agent_state:Agent当前的状态
+    func_json:可用的函数列表
+    :param session:
+    :param agent_state:
+    :param func_json:
+    :return:
+    """
+    payload = {
+        "model": "qwen-plus",
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": agent_state}
+        ],
+        "tools": json.loads(func_json),  # ← 关键：注册Tools
+        "tool_choice": "auto",  # ← LLM自己决定要不要调Tool
+        "temperature": 1.2
+    }
+    async with session.post(url,json=payload,headers=headers) as resp:
+        result=await resp.json()
+        message=result["choices"][0]["message"]
+
+        #调用函数
+        if "tool_calls" in message:
+            tool_calls=message["tool_calls"][0]
+            tool_name=tool_calls["function"]["name"]
+            tool_params=tool_calls["function"]["arguments"]
+
+            return {
+                "type":"tool_call",
+                "tool_name":tool_name,
+                "tool_params":tool_params
+            }
+
+        else:
+            return {
+                "type":"final_decision",
+                "action":message["content"]
+            }
+
 async def call_llm_aysnc(session:aiohttp.ClientSession,user_content:str):
     async with sem:
         await asyncio.sleep(1.5)
@@ -246,6 +289,133 @@ async def call_llm_aysnc(session:aiohttp.ClientSession,user_content:str):
             print(f"LLM请求异常, 类型: {type(e).__name__}, 详情: {e}")
             return "Staying"
 
+
+async def process_agent_data_with_tool(app, redis_pub, session, data):
+    agent_state = data['AgentState']
+    agent_id=agent_state['id']
+    # 初始只给少量信息，让模型自己决定是否调用 perceive_env
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": f"你当前的状态：{agent_state}"}
+    ]
+
+    # 定义 tools
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "perceive_env",
+                "description": "获取指定坐标周围3x3的环境信息",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "x": {"type": "integer"},
+                        "y": {"type": "integer"}
+                    },
+                    "required": ["x", "y"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "take_action",
+                "description": "执行指定的行动",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "operation": {
+                            "type": "string",
+                            "enum": ["Staying", "MoveUp", "MoveDown", "MoveRight", "MoveLeft", "Work", "Interact"]
+                        }
+                    },
+                    "required": ["operation"]
+                }
+            }
+        }
+    ]
+    #处理cpp端返回的函数调用信息
+    async def wait_tool_response(redis_client, call_id, timeout=5.0):
+        pubsub = redis_client.pubsub()
+        await pubsub.subscribe("Agent:ToolResult")
+        try:
+            start = asyncio.get_event_loop().time()
+            async for msg in pubsub.listen():
+                if msg["type"] != "message":
+                    continue
+                data = json.loads(msg["data"])
+                if data.get("call_id") == call_id:
+                    return data
+                #超时处理
+                if asyncio.get_event_loop().time() - start > timeout:
+                    return None
+        finally:
+            await pubsub.unsubscribe("Agent:ToolResult")
+            await pubsub.close()
+    #发布agent的函数调用请求，并且返回cpp端处理的信息
+    async def call_cpp_tool_perceive_env(redis_client,agent_id ,tool_args):
+        call_id=str(uuid.uuid4())
+        msg={
+            "call_id":call_id,
+            "agent_id":agent_id,
+            "function_name":"perceive_env",
+            "arguments":tool_args
+        }
+        await redis_client.publish("Agent:ToolCall", json.dumps(msg))
+        result =await wait_tool_response(redis_client, call_id)
+        if result and result.get("success"):
+            return result["data"]
+        else:
+            return {"error":"函数调用失败或者超时"}
+
+    final_action="Staying"#默认值
+    while True:
+        payload = {
+            "model":"qwen-plus",
+            "messages": messages,
+            "tools": tools,
+            "tool_choice": "auto"
+        }
+        async with session.post(url,json=payload, headers=headers) as resp:
+            result=await resp.json()
+        msg = result["choices"][0]["message"]
+
+        if msg.get("tool_calls"):
+            tool_call=msg["tool_calls"][0]
+            tool_name=tool_call["function"]["name"]
+            tool_args=json.loads(tool_call["function"]["arguments"])
+
+            if tool_name == "perceive_env":
+                env_data=await call_cpp_tool_perceive_env(redis_pub,agent_id,tool_args)
+                messages.append({
+                    "role":"assistant",
+                    "content":None,
+                    "tool_calls":[tool_call]
+                })
+                messages.append({
+                    "role":"tool",
+                    "tool_call_id":tool_call["id"],
+                    "content":json.dumps(env_data)
+                })
+            elif tool_name == "take_action":
+                final_action=tool_args["operation"]
+                break
+        else:
+            text=msg.get("content","")
+            match = re.search(r'(MoveUp|MoveDown|MoveLeft|MoveRight|Staying|Work|Interact)', text)
+
+            if match:
+                final_action=match.group(1)
+                break
+            else:
+                messages.append({
+                    "role":"user",
+                    "content":"请输入一个有效的操作"
+                })
+    await redis_pub.publish("Agent:Decision", json.dumps({
+        "id":agent_id,
+        "decision":final_action
+    }))
 
 
 async def process_agent_data(app,redis_pub,session,data:dict):
@@ -357,7 +527,8 @@ async def listen_redis(app):
                     continue
 
                 for one_agent in agents_list:
-                    asyncio.create_task(process_agent_data(app,redis,session,one_agent))
+                    #asyncio.create_task(process_agent_data(app,redis,session,one_agent))
+                    asyncio.create_task(process_agent_data_with_tool(app,redis,session,one_agent))
 
 
         except asyncio.CancelledError:
